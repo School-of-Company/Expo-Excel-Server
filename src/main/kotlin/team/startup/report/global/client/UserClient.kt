@@ -93,6 +93,9 @@ data class TraineeDetailItem(
     val phoneNumber: String?,
     val applicationType: ApplicationType,
     val information: InformationResDto,
+    val participantId: Long? = null,
+    val school: String? = null,
+    val registration: InformationResDto? = null,
 )
 
 data class TraineeDetail(
@@ -101,6 +104,9 @@ data class TraineeDetail(
     val name: String?,
     val trainingId: String?,
     val information: InformationResDto,
+    val participantId: Long? = null,
+    val school: String? = null,
+    val registration: InformationResDto? = null,
 )
 
 data class StandardParticipantBrief(

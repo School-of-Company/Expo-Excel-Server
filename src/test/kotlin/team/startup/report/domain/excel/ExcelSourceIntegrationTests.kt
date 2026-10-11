@@ -554,6 +554,94 @@ class ExcelSourceIntegrationTests {
         expo.requests.none { it.method == "POST" } shouldBe true
     }
 
+    @Test
+    fun `등록 원천 - 구형 본인 동행자 타 행사 응답을 XLSX에서 분리한다`() {
+        expo.on(EXPO, body = expoBody())
+        application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
+        val registration =
+            info(
+                mapOf("과목" to listOf("m1", "m2"), "소속" to "등록학교"),
+                listOf(question("b", "과목", 2, "MULTIPLE", mapOf("m1" to "수학", "m2" to "과학")), question("a", "소속", 1, "SENTENCE")),
+            )
+        val linked =
+            trainee(2, "PRE", plain()) +
+                mapOf(
+                    "participantId" to 20,
+                    "school" to "fallback학교",
+                    "registration" to registration,
+                    "trainingId" to null,
+                    "phoneNumber" to null,
+                    "notificationPhoneNumber" to "대표수신번호",
+                )
+        val companion = trainee(3, "PRE", plain()) + mapOf("participantId" to 30, "school" to "동행학교", "registration" to null)
+        val otherExpo = trainee(4, "PRE", plain()) + mapOf("participantId" to 40, "registration" to null)
+        val unlinked = trainee(5, "PRE", plain()) + mapOf("registration" to registration)
+        user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "FIELD", plain("소속" to "구형학교")), linked), 2))
+        user.on("$TRAINEE_PAGE&cursor=2", body = page(listOf(companion, otherExpo, unlinked), null))
+
+        val result = admin("/excel/e1")
+
+        result.response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+            workbook.numberOfSheets shouldBe 1
+            workbook.getSheetAt(0).values() shouldBe
+                listOf(
+                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "소속", "과목", "공통 강연", "선택 강연"),
+                    listOf("연수자1", "T1", "010-1", "현장 등록", "구형학교", "", "", ""),
+                    listOf("연수자2", "", "", "사전 등록", "등록학교", "수학, 과학", "", ""),
+                    listOf("연수자3", "T3", "010-3", "사전 등록", "동행학교", "", "", ""),
+                    listOf("연수자4", "T4", "010-4", "사전 등록", "", "", "", ""),
+                    listOf("연수자5", "T5", "010-5", "사전 등록", "", "", "", ""),
+                )
+        }
+        user.on(TRAINEE_PAGE, body = page(listOf(companion), null))
+        val schoolOnly = admin("/excel/e1")
+        XSSFWorkbook(ByteArrayInputStream(schoolOnly.response.contentAsByteArray)).use { workbook ->
+            workbook.getSheetAt(0).values()[0] shouldBe listOf("이름", "연수원아이디", "전화번호", "신청방식", "공통 강연", "선택 강연")
+        }
+        assertProviderTokens()
+    }
+
+    @Test
+    fun `출석부 - 학교명 소속 school 순서와 기존 개인 식별값을 유지한다`() {
+        expo.on(EXPO, body = expoBody())
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 3, 101)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(101, "기조 강연", "ESSENTIAL", "2026-10-09 10:00", "2026-10-09 11:00")))
+        val registration = plain("소속" to "등록소속", "이름" to "등록이름", "연수원아이디" to "등록ID")
+        val detail =
+            mapOf(
+                "traineeId" to 3,
+                "expoId" to "e1",
+                "name" to "본인이름",
+                "trainingId" to null,
+                "information" to plain(),
+                "participantId" to 30,
+                "school" to "fallback학교",
+                "registration" to registration,
+            )
+        val cases =
+            listOf(
+                detail to "등록소속",
+                (detail + mapOf("information" to plain("소속" to "기존소속"))) to "기존소속",
+                (detail + mapOf("information" to plain("학교명" to "기존학교", "소속" to "기존소속"))) to "기존학교",
+                (detail + mapOf("registration" to null)) to "fallback학교",
+                (detail - setOf("participantId", "school", "registration")) to "학교명",
+            )
+        cases.forEach { (response, expectedSchool) ->
+            user.on(TRAINEE_DETAIL, body = response)
+            val result = admin("/excel/trainee/3")
+            result.response.status shouldBe 200
+            XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+                val sheet = workbook.getSheetAt(0)
+                sheet.values()[8][1] shouldBe expectedSchool
+                sheet.values()[8][2] shouldBe "본인이름"
+                DataFormatter().formatCellValue(sheet.cell(10, 9)) shouldBe ""
+                sheet.values()[2][2] shouldBe "2026.10.09.(금)"
+            }
+        }
+        assertProviderTokens()
+    }
+
     private fun admin(path: String): MvcResult =
         mockMvc
             .perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer ${TestJwt.token("ROLE_ADMIN")}"))
