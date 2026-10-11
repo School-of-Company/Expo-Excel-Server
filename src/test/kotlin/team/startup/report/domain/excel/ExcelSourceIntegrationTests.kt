@@ -8,6 +8,7 @@ import io.kotest.matchers.string.shouldMatch
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
 import org.apache.poi.ss.usermodel.BorderStyle
+import org.apache.poi.ss.usermodel.CellType
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
@@ -413,6 +414,124 @@ class ExcelSourceIntegrationTests {
 
         TOKENS.forEach { output.all shouldNotContain it }
         output.all shouldNotContain "secret-body"
+    }
+
+    @Test
+    fun `같은 문항 ID의 서로 다른 제출 버전은 각 스냅샷 표시문구를 사용한다`() {
+        expo.on(EXPO, body = expoBody())
+
+        fun version(label: String) =
+            info(
+                mapOf("선택" to "key"),
+                listOf(question("q1", "선택", 1, "DROPDOWN", mapOf("key" to label))),
+            )
+        user.on(
+            STANDARD_PAGE,
+            body = page(listOf(standard(1, true, "PRE", version("이전 보기"), null), standard(2, true, "PRE", version("변경 보기"), null)), null),
+        )
+        val sheet = admin("/excel/standard/e1").sheet("박람회 참가자 정보")
+        sheet.cell(1, 4).stringCellValue shouldBe "이전 보기"
+        sheet.cell(2, 4).stringCellValue shouldBe "변경 보기"
+        sheet.getRow(0).lastCellNum.toInt() shouldBe 5
+    }
+
+    @Test
+    fun `네 양식의 수식 모양 외부 입력은 실제 XLSX 문자열 셀이다`() {
+        val payloads = listOf("=HYPERLINK(\"https://example.invalid\",\"x\")", "+1+1", "-1+1", "@SUM(A1:A2)")
+        expo.on(EXPO, body = expoBody())
+        user.on(
+            STANDARD_PAGE,
+            body =
+                page(
+                    payloads.mapIndexed {
+                        index,
+                        text,
+                        ->
+                        standard(index + 1L, true, "PRE", plain("입력" to text), null)
+                    },
+                    null,
+                ),
+        )
+        user.on(TRAINEE_PAGE, body = page(payloads.mapIndexed { index, text -> trainee(index + 1L, "PRE", plain("입력" to text)) }, null))
+        application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
+        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
+        application.on(STANDARD_APPLICATIONS, body = payloads.indices.map { standardApplication(it + 1L, it + 1L) })
+        user.on(BRIEFS, body = payloads.mapIndexed { index, text -> brief(index + 1L, true) + mapOf("name" to text) })
+        user.on(
+            TRAINEE_DETAIL,
+            body =
+                mapOf(
+                    "traineeId" to 3,
+                    "expoId" to "e1",
+                    "name" to payloads[0],
+                    "trainingId" to payloads[1],
+                    "information" to plain("소속" to payloads[2]),
+                ),
+        )
+        val standardSheet = admin("/excel/standard/e1").sheet("박람회 참가자 정보")
+        val traineeSheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
+        val programSheet = admin("/excel/program/e1?programId=7").sheet("프로그램 참가자 정보")
+        payloads.forEachIndexed { index, text ->
+            listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 4), programSheet.cell(index + 1, 1)).forEach {
+                it.cellType shouldBe CellType.STRING
+                it.stringCellValue shouldBe text
+            }
+        }
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 3, 1)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(1, payloads[3], "ESSENTIAL")))
+        val attendance = admin("/excel/trainee/3").sheet("출석부")
+        val cells = attendance.flatMap { it.toList() }
+        cells.any { it.cellType == CellType.FORMULA } shouldBe false
+        payloads.forEach { text -> cells.any { it.cellType == CellType.STRING && it.stringCellValue.contains(text) } shouldBe true }
+    }
+
+    @Test
+    fun `큰 연수자 목록은 커서 전체와 500명 및 100개 배치를 실제 파일에 반영한다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(TRAINEE_PAGE, body = page((1L..500L).map { trainee(it, "PRE", plain()) }, 500))
+        user.on("$TRAINEE_PAGE&cursor=500", body = page((501L..1001L).take(500).map { trainee(it, "PRE", plain()) }, 1000))
+        user.on("$TRAINEE_PAGE&cursor=1000", body = page(listOf(trainee(1001, "PRE", plain())), null))
+        application.routes[TRAINING_APPLICATIONS] = { request ->
+            val ids =
+                StubProvider.JSON
+                    .readTree(request.body)["traineeIds"]
+                    .values()
+                    .map { it.asLong() }
+            StubProvider.Reply(200, ids.map { trainingApplication(it, it, it) }.toJson())
+        }
+        expo.routes[TRAINING_BATCH] = { request ->
+            val ids =
+                StubProvider.JSON
+                    .readTree(request.body)["programIds"]
+                    .values()
+                    .map { it.asLong() }
+            StubProvider.Reply(200, ids.map { trainingProgram(it, "강연$it", "ESSENTIAL") }.toJson())
+        }
+        val sheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
+        sheet.lastRowNum shouldBe 1001
+        (1..1001).forEach { id ->
+            sheet.cell(id, 0).stringCellValue shouldBe "연수자$id"
+            sheet.cell(id, 4).stringCellValue shouldBe "강연$id"
+        }
+        application.requests.map { StubProvider.JSON.readTree(it.body)["traineeIds"].size() } shouldContainExactly listOf(500, 500, 1)
+        expo.requests.filter { it.method == "POST" }.map { StubProvider.JSON.readTree(it.body)["programIds"].size() } shouldContainExactly
+            (List(10) { 100 } + 1)
+    }
+
+    @Test
+    fun `원천 일부 누락과 뒤 페이지 장애는 부분 XLSX 성공으로 위장하지 않는다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(STANDARD_PAGE, body = page(listOf(standard2()), 2))
+        user.on("$STANDARD_PAGE&cursor=2", 503, "secret-body")
+        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP 503)")
+        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
+        application.on(STANDARD_APPLICATIONS, body = listOf(standardApplication(1, 1), standardApplication(2, 2)))
+        user.on(BRIEFS, body = listOf(brief(1, true)))
+        admin("/excel/program/e1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
+        user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "PRE", plain())), null))
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 1, 1)))
+        expo.on(TRAINING_BATCH, body = emptyList<Any>())
+        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
     }
 
     private fun admin(path: String): MvcResult =
