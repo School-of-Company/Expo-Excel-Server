@@ -67,6 +67,8 @@ class ExcelSecurityConfig(
                     .accessDeniedHandler { _, res, _ -> res.writeError(403, "접근 권한이 없습니다.") }
             }.authorizeHttpRequests {
                 it
+                    .requestMatchers(HttpMethod.POST, "/excel/expos/{expoId}/downloads")
+                    .hasAuthority(ADMIN_AUTHORITY)
                     .requestMatchers(
                         HttpMethod.GET,
                         "/excel/{expo_id}",
