@@ -61,8 +61,9 @@ class HttpReportSource(
                     trainingId = trainee.trainingId,
                     phoneNumber = trainee.phoneNumber,
                     applicationType = trainee.applicationType,
-                    information = unresolved.add(trainee.information.toAnswers()),
+                    information = unresolved.traineeAnswers(trainee.information, trainee.participantId, trainee.registration),
                     programs = applications[trainee.traineeId].orEmpty().map { programs.getValue(it.trainingProgramId) },
+                    school = trainee.school,
                 )
             }.also { unresolved.report("trainee", expoId) }
     }
@@ -88,6 +89,7 @@ class HttpReportSource(
 
     override fun traineeAttendance(traineeId: Long): TraineeAttendance? {
         val trainee = user.trainee(traineeId) ?: return null
+        check(trainee.traineeId == traineeId) { "${UserClient.NAME} 서비스 대상 오류" }
         val expoSummary = expo.expo(trainee.expoId) ?: error("연수자의 박람회 없음")
         val applications = trainingApplications(listOf(traineeId))
         val programs = trainingPrograms(trainee.expoId, applications)
@@ -96,8 +98,9 @@ class HttpReportSource(
             expoTitle = expoSummary.title,
             traineeName = trainee.name,
             trainingId = trainee.trainingId,
-            information = unresolved.add(trainee.information.toAnswers()),
+            information = unresolved.traineeAnswers(trainee.information, trainee.participantId, trainee.registration, attendance = true),
             programs = applications.map { programs.getValue(it.trainingProgramId) },
+            school = trainee.school,
         ).also { unresolved.report("attendance", trainee.expoId) }
     }
 
@@ -105,8 +108,12 @@ class HttpReportSource(
     private fun trainingApplications(traineeIds: List<Long>): List<TrainingApplication> =
         traineeIds
             .chunked(ApplicationClient.MAX_TRAINEE_IDS)
-            .flatMap(application::trainingApplications)
-            .distinctBy { it.applicationId }
+            .flatMap { ids ->
+                val requested = ids.toSet()
+                application.trainingApplications(ids).also { applications ->
+                    check(applications.all { it.traineeId in requested }) { "${ApplicationClient.NAME} 서비스 대상 오류" }
+                }
+            }.distinctBy { it.applicationId }
             .sortedBy { it.applicationId }
 
     private fun trainingPrograms(
@@ -142,6 +149,18 @@ class HttpReportSource(
     /** 제출 당시 문항으로 복원하지 못한 답변 수. 개인정보 없이 건수와 행사 ID만 남긴다. */
     private inner class Unresolved {
         private var count = 0
+
+        fun traineeAnswers(
+            information: InformationResDto,
+            participantId: Long?,
+            registration: InformationResDto?,
+            attendance: Boolean = false,
+        ): Map<String, String?> {
+            // User #85가 같은 행사 본인의 원천만 제공한다. 연결 ID 없는 원천은 소비하지 않는다.
+            val registered = if (participantId != null && registration != null) add(registration.toAnswers()) else emptyMap()
+            val restored = if (attendance) registered - setOf("이름", "연수원아이디", "전화번호") else registered
+            return restored + add(information.toAnswers())
+        }
 
         fun add(mapped: MappedAnswers): Map<String, String?> {
             count += mapped.unresolved

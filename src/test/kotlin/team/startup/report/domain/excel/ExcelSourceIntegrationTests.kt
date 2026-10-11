@@ -7,6 +7,9 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldMatch
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
+import org.apache.poi.ss.usermodel.BorderStyle
+import org.apache.poi.ss.usermodel.CellType
+import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.AfterAll
@@ -190,6 +193,82 @@ class ExcelSourceIntegrationTests {
     }
 
     @Test
+    fun `연수자 - null과 누락 필드도 ID 순서와 개인 전화번호 및 신청을 유지한다`() {
+        expo.on(EXPO, body = expoBody())
+        val linked =
+            trainee(2, "PRE", plain()) +
+                mapOf("trainingId" to null, "phoneNumber" to null, "notificationPhoneNumber" to "010-representative")
+        val different = trainee(1, "FIELD", plain()) + mapOf("notificationPhoneNumber" to "010-representative")
+        val missing = trainee(3, "PRE", plain()) - setOf("trainingId", "phoneNumber")
+        user.on(TRAINEE_PAGE, body = page(listOf(linked, different), 2))
+        user.on("$TRAINEE_PAGE&cursor=2", body = page(listOf(missing, trainee(4, "PRE", plain())), null))
+        application.on(
+            TRAINING_APPLICATIONS,
+            body = listOf(trainingApplication(30, 3, 102), trainingApplication(20, 2, 102), trainingApplication(10, 2, 101)),
+        )
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(102, "선택", "CHOICE"), trainingProgram(101, "공통", "ESSENTIAL")))
+
+        val result = admin("/excel/e1")
+
+        result.response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+            workbook.numberOfSheets shouldBe 1
+            val sheet = workbook.getSheet("사전 교원연수자 정보")
+            sheet.values() shouldBe
+                listOf(
+                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "공통 강연", "선택 강연"),
+                    listOf("연수자1", "T1", "010-1", "현장 등록", "", ""),
+                    listOf("연수자2", "", "", "사전 등록", "공통", "선택"),
+                    listOf("연수자3", "", "", "사전 등록", "", "선택"),
+                    listOf("연수자4", "T4", "010-4", "사전 등록", "", ""),
+                )
+            sheet.cell(0, 2).assertDarkHeader()
+            sheet.cell(2, 2).cellStyle.borderBottom shouldBe BorderStyle.THIN
+            sheet.getColumnWidth(2) shouldBe 20 * 256
+        }
+        StubProvider.JSON
+            .readTree(application.requests.single().body)["traineeIds"]
+            .values()
+            .map { it.asLong() } shouldBe
+            listOf(1L, 2L, 3L, 4L)
+        assertProviderTokens()
+    }
+
+    @Test
+    fun `출석부 - null 또는 누락 연수 번호는 빈 셀이고 프로그램 시작일과 기존 서식을 유지한다`() {
+        expo.on(EXPO, body = expoBody())
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 3, 101)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(101, "기조 강연", "ESSENTIAL", "2026-10-09 10:00", "2026-10-09 11:00")))
+        val detail =
+            mapOf(
+                "traineeId" to 3,
+                "expoId" to "e1",
+                "name" to "연수자3",
+                "trainingId" to null,
+                "information" to plain("소속" to "광주초"),
+            )
+        listOf(detail, detail - "trainingId").forEach { response ->
+            user.on(TRAINEE_DETAIL, body = response)
+
+            val result = admin("/excel/trainee/3")
+
+            result.response.status shouldBe 200
+            result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Trainee_Attendance_연수자3.xlsx\""
+            XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+                workbook.numberOfSheets shouldBe 1
+                val sheet = workbook.getSheet("출석부")
+                sheet.values()[2][2] shouldBe "2026.10.09.(금)"
+                sheet.values()[8] shouldBe listOf("1", "광주초", "연수자3", null, null, null, null, null, null, null)
+                DataFormatter().formatCellValue(sheet.cell(10, 9)) shouldBe ""
+                sheet.cell(10, 9).cellStyle.borderBottom shouldBe BorderStyle.THIN
+                sheet.getColumnWidth(9) shouldBe 3800
+                sheet.mergedRegions.map { it.formatAsString() } shouldContainAll listOf("A1:J1", "D8:H8")
+            }
+        }
+        assertProviderTokens()
+    }
+
+    @Test
     fun `연수자 - 행사 없음과 연수자 없음은 v1 메시지`() {
         expo.on(EXPO, 404, """{"status":404}""")
         admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
@@ -335,6 +414,232 @@ class ExcelSourceIntegrationTests {
 
         TOKENS.forEach { output.all shouldNotContain it }
         output.all shouldNotContain "secret-body"
+    }
+
+    @Test
+    fun `같은 문항 ID의 서로 다른 제출 버전은 각 스냅샷 표시문구를 사용한다`() {
+        expo.on(EXPO, body = expoBody())
+
+        fun version(label: String) =
+            info(
+                mapOf("선택" to "key"),
+                listOf(question("q1", "선택", 1, "DROPDOWN", mapOf("key" to label))),
+            )
+        user.on(
+            STANDARD_PAGE,
+            body = page(listOf(standard(1, true, "PRE", version("이전 보기"), null), standard(2, true, "PRE", version("변경 보기"), null)), null),
+        )
+        val sheet = admin("/excel/standard/e1").sheet("박람회 참가자 정보")
+        sheet.cell(1, 4).stringCellValue shouldBe "이전 보기"
+        sheet.cell(2, 4).stringCellValue shouldBe "변경 보기"
+        sheet.getRow(0).lastCellNum.toInt() shouldBe 5
+    }
+
+    @Test
+    fun `네 양식의 수식 모양 외부 입력은 실제 XLSX 문자열 셀이다`() {
+        val payloads = listOf("=HYPERLINK(\"https://example.invalid\",\"x\")", "+1+1", "-1+1", "@SUM(A1:A2)")
+        expo.on(EXPO, body = expoBody())
+        user.on(
+            STANDARD_PAGE,
+            body =
+                page(
+                    payloads.mapIndexed {
+                        index,
+                        text,
+                        ->
+                        standard(index + 1L, true, "PRE", plain("입력" to text), null)
+                    },
+                    null,
+                ),
+        )
+        user.on(TRAINEE_PAGE, body = page(payloads.mapIndexed { index, text -> trainee(index + 1L, "PRE", plain("입력" to text)) }, null))
+        application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
+        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
+        application.on(STANDARD_APPLICATIONS, body = payloads.indices.map { standardApplication(it + 1L, it + 1L) })
+        user.on(BRIEFS, body = payloads.mapIndexed { index, text -> brief(index + 1L, true) + mapOf("name" to text) })
+        user.on(
+            TRAINEE_DETAIL,
+            body =
+                mapOf(
+                    "traineeId" to 3,
+                    "expoId" to "e1",
+                    "name" to payloads[0],
+                    "trainingId" to payloads[1],
+                    "information" to plain("소속" to payloads[2]),
+                ),
+        )
+        val standardSheet = admin("/excel/standard/e1").sheet("박람회 참가자 정보")
+        val traineeSheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
+        val programSheet = admin("/excel/program/e1?programId=7").sheet("프로그램 참가자 정보")
+        payloads.forEachIndexed { index, text ->
+            listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 4), programSheet.cell(index + 1, 1)).forEach {
+                it.cellType shouldBe CellType.STRING
+                it.stringCellValue shouldBe text
+            }
+        }
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 3, 1)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(1, payloads[3], "ESSENTIAL")))
+        val attendance = admin("/excel/trainee/3").sheet("출석부")
+        val cells = attendance.flatMap { it.toList() }
+        cells.any { it.cellType == CellType.FORMULA } shouldBe false
+        payloads.forEach { text -> cells.any { it.cellType == CellType.STRING && it.stringCellValue.contains(text) } shouldBe true }
+    }
+
+    @Test
+    fun `큰 연수자 목록은 커서 전체와 500명 및 100개 배치를 실제 파일에 반영한다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(TRAINEE_PAGE, body = page((1L..500L).map { trainee(it, "PRE", plain()) }, 500))
+        user.on("$TRAINEE_PAGE&cursor=500", body = page((501L..1001L).take(500).map { trainee(it, "PRE", plain()) }, 1000))
+        user.on("$TRAINEE_PAGE&cursor=1000", body = page(listOf(trainee(1001, "PRE", plain())), null))
+        application.routes[TRAINING_APPLICATIONS] = { request ->
+            val ids =
+                StubProvider.JSON
+                    .readTree(request.body)["traineeIds"]
+                    .values()
+                    .map { it.asLong() }
+            StubProvider.Reply(200, ids.map { trainingApplication(it, it, it) }.toJson())
+        }
+        expo.routes[TRAINING_BATCH] = { request ->
+            val ids =
+                StubProvider.JSON
+                    .readTree(request.body)["programIds"]
+                    .values()
+                    .map { it.asLong() }
+            StubProvider.Reply(200, ids.map { trainingProgram(it, "강연$it", "ESSENTIAL") }.toJson())
+        }
+        val sheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
+        sheet.lastRowNum shouldBe 1001
+        (1..1001).forEach { id ->
+            sheet.cell(id, 0).stringCellValue shouldBe "연수자$id"
+            sheet.cell(id, 4).stringCellValue shouldBe "강연$id"
+        }
+        application.requests.map { StubProvider.JSON.readTree(it.body)["traineeIds"].size() } shouldContainExactly listOf(500, 500, 1)
+        expo.requests.filter { it.method == "POST" }.map { StubProvider.JSON.readTree(it.body)["programIds"].size() } shouldContainExactly
+            (List(10) { 100 } + 1)
+    }
+
+    @Test
+    fun `원천 일부 누락과 뒤 페이지 장애는 부분 XLSX 성공으로 위장하지 않는다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(STANDARD_PAGE, body = page(listOf(standard2()), 2))
+        user.on("$STANDARD_PAGE&cursor=2", 503, "secret-body")
+        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP 503)")
+        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
+        application.on(STANDARD_APPLICATIONS, body = listOf(standardApplication(1, 1), standardApplication(2, 2)))
+        user.on(BRIEFS, body = listOf(brief(1, true)))
+        admin("/excel/program/e1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
+        user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "PRE", plain())), null))
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 1, 1)))
+        expo.on(TRAINING_BATCH, body = emptyList<Any>())
+        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
+    }
+
+    @Test
+    fun `다른 연수자의 단건 및 신청 응답으로 출석부를 만들지 않는다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(
+            TRAINEE_DETAIL,
+            body = mapOf("traineeId" to 4, "expoId" to "e1", "name" to "다른 사람", "trainingId" to "T4", "information" to plain()),
+        )
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 4, 1)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(1, "다른 사람 강연", "ESSENTIAL")))
+        admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
+        application.requests shouldBe emptyList()
+
+        user.on(
+            TRAINEE_DETAIL,
+            body = mapOf("traineeId" to 3, "expoId" to "e1", "name" to "본인", "trainingId" to "T3", "information" to plain()),
+        )
+        admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
+        expo.requests.none { it.method == "POST" } shouldBe true
+    }
+
+    @Test
+    fun `등록 원천 - 구형 본인 동행자 타 행사 응답을 XLSX에서 분리한다`() {
+        expo.on(EXPO, body = expoBody())
+        application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
+        val registration =
+            info(
+                mapOf("과목" to listOf("m1", "m2"), "소속" to "등록학교"),
+                listOf(question("b", "과목", 2, "MULTIPLE", mapOf("m1" to "수학", "m2" to "과학")), question("a", "소속", 1, "SENTENCE")),
+            )
+        val linked =
+            trainee(2, "PRE", plain()) +
+                mapOf(
+                    "participantId" to 20,
+                    "school" to "fallback학교",
+                    "registration" to registration,
+                    "trainingId" to null,
+                    "phoneNumber" to null,
+                    "notificationPhoneNumber" to "대표수신번호",
+                )
+        val companion = trainee(3, "PRE", plain()) + mapOf("participantId" to 30, "school" to "동행학교", "registration" to null)
+        val otherExpo = trainee(4, "PRE", plain()) + mapOf("participantId" to 40, "registration" to null)
+        val unlinked = trainee(5, "PRE", plain()) + mapOf("registration" to registration)
+        user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "FIELD", plain("소속" to "구형학교")), linked), 2))
+        user.on("$TRAINEE_PAGE&cursor=2", body = page(listOf(companion, otherExpo, unlinked), null))
+
+        val result = admin("/excel/e1")
+
+        result.response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+            workbook.numberOfSheets shouldBe 1
+            workbook.getSheetAt(0).values() shouldBe
+                listOf(
+                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "소속", "과목", "공통 강연", "선택 강연"),
+                    listOf("연수자1", "T1", "010-1", "현장 등록", "구형학교", "", "", ""),
+                    listOf("연수자2", "", "", "사전 등록", "등록학교", "수학, 과학", "", ""),
+                    listOf("연수자3", "T3", "010-3", "사전 등록", "동행학교", "", "", ""),
+                    listOf("연수자4", "T4", "010-4", "사전 등록", "", "", "", ""),
+                    listOf("연수자5", "T5", "010-5", "사전 등록", "", "", "", ""),
+                )
+        }
+        user.on(TRAINEE_PAGE, body = page(listOf(companion), null))
+        val schoolOnly = admin("/excel/e1")
+        XSSFWorkbook(ByteArrayInputStream(schoolOnly.response.contentAsByteArray)).use { workbook ->
+            workbook.getSheetAt(0).values()[0] shouldBe listOf("이름", "연수원아이디", "전화번호", "신청방식", "공통 강연", "선택 강연")
+        }
+        assertProviderTokens()
+    }
+
+    @Test
+    fun `출석부 - 학교명 소속 school 순서와 기존 개인 식별값을 유지한다`() {
+        expo.on(EXPO, body = expoBody())
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 3, 101)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(101, "기조 강연", "ESSENTIAL", "2026-10-09 10:00", "2026-10-09 11:00")))
+        val registration = plain("소속" to "등록소속", "이름" to "등록이름", "연수원아이디" to "등록ID")
+        val detail =
+            mapOf(
+                "traineeId" to 3,
+                "expoId" to "e1",
+                "name" to "본인이름",
+                "trainingId" to null,
+                "information" to plain(),
+                "participantId" to 30,
+                "school" to "fallback학교",
+                "registration" to registration,
+            )
+        val cases =
+            listOf(
+                detail to "등록소속",
+                (detail + mapOf("information" to plain("소속" to "기존소속"))) to "기존소속",
+                (detail + mapOf("information" to plain("학교명" to "기존학교", "소속" to "기존소속"))) to "기존학교",
+                (detail + mapOf("registration" to null)) to "fallback학교",
+                (detail - setOf("participantId", "school", "registration")) to "학교명",
+            )
+        cases.forEach { (response, expectedSchool) ->
+            user.on(TRAINEE_DETAIL, body = response)
+            val result = admin("/excel/trainee/3")
+            result.response.status shouldBe 200
+            XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+                val sheet = workbook.getSheetAt(0)
+                sheet.values()[8][1] shouldBe expectedSchool
+                sheet.values()[8][2] shouldBe "본인이름"
+                DataFormatter().formatCellValue(sheet.cell(10, 9)) shouldBe ""
+                sheet.values()[2][2] shouldBe "2026.10.09.(금)"
+            }
+        }
+        assertProviderTokens()
     }
 
     private fun admin(path: String): MvcResult =

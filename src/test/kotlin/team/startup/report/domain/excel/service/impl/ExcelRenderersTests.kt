@@ -280,6 +280,23 @@ class ExcelRenderersTests :
             }
         }
 
+        "출석부: 연수 번호가 null이면 폼의 연수원아이디를 기록한다" {
+            read(
+                renderTraineeAttendance(
+                    TraineeAttendance(
+                        expoTitle = "박람회",
+                        traineeName = "홍길동",
+                        trainingId = null,
+                        information = mapOf("연수원아이디" to "FORM-1"),
+                        programs = listOf(program(1, "기조 강연", TrainingCategory.ESSENTIAL)),
+                    ),
+                    listOf(LocalDate.of(2026, 5, 1)),
+                ),
+            ).use { workbook ->
+                workbook.getSheet("출석부").cell(10, 9).stringCellValue shouldBe "FORM-1"
+            }
+        }
+
         "출석부: 기조강연 없음·릴레이 기수, 단일 날짜, 문자열이 아닌 폼 값" {
             val sheet =
                 read(
