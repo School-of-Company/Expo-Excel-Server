@@ -24,6 +24,18 @@ eureka:
   client:
     enabled: false
 
+swagger:
+  enabled: ${SWAGGER_ENABLED:false}
+  include-internal: ${SWAGGER_INCLUDE_INTERNAL:false}
+
+springdoc:
+  api-docs:
+    enabled: ${swagger.enabled}
+    path: /stat/v3/api-docs
+  swagger-ui:
+    enabled: ${swagger.enabled}
+    path: /stat/swagger-ui.html
+
 # 엑셀 원천 공급자 내부 API. 주소·토큰은 기본값 없이 비어 있으면 기동에 실패한다.
 clients:
   connect-timeout: ${CLIENT_CONNECT_TIMEOUT:3s}
