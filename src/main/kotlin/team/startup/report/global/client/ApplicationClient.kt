@@ -1,11 +1,56 @@
 package team.startup.report.global.client
 
+import org.springframework.core.ParameterizedTypeReference
+import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
+import org.springframework.web.client.RestClientResponseException
+import team.startup.report.global.exception.ExpectedException
+import java.util.UUID
 
 /** Expo-Application-Server 내부 조회(PR #23). 공급자는 ID 오름차순으로 주지만 호출자가 applicationId로 다시 정렬한다. */
 class ApplicationClient(
     private val http: RestClient,
 ) {
+    fun selectedTargets(
+        expoId: UUID,
+        applicationIds: List<UUID>,
+    ): ApplicationSelection =
+        http
+            .post()
+            .uri(TARGET_PATH + "/selection", expoId)
+            .body(mapOf("applicationIds" to applicationIds))
+            .targetResponse()
+
+    fun createTargetSnapshot(
+        expoId: UUID,
+        filter: ApplicationFilter,
+    ): ApplicationSnapshot =
+        http
+            .post()
+            .uri(TARGET_PATH, expoId)
+            .body(mapOf("filter" to filter, "limit" to 500))
+            .targetResponse()
+
+    fun nextTargetSnapshot(
+        expoId: UUID,
+        cursor: String,
+    ): ApplicationSnapshot = http.get().uri { it.path(TARGET_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse()
+
+    private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(): T =
+        try {
+            retrieve().body(object : ParameterizedTypeReference<T>() {}) ?: error("Application 대상 응답 없음")
+        } catch (e: RestClientResponseException) {
+            val status =
+                when (e.statusCode.value()) {
+                    400 -> HttpStatus.BAD_REQUEST
+                    404 -> HttpStatus.NOT_FOUND
+                    410 -> HttpStatus.GONE
+                    413 -> HttpStatus.PAYLOAD_TOO_LARGE
+                    else -> HttpStatus.BAD_GATEWAY
+                }
+            throw ExpectedException(status, "신청 대상 조회에 실패했습니다. 범위와 스냅샷 유효기간을 확인해 주세요.")
+        }
+
     /** 프로그램의 일반 신청. 공급자는 프로그램 존재를 확인하지 않으므로 존재 확인은 Expo로 한다. */
     fun standardApplications(programId: Long): List<StandardApplication> =
         http.get().uri("/internal/standard-program-applications/program/{programId}", programId).fetchRequired(NAME)
@@ -22,6 +67,7 @@ class ApplicationClient(
     companion object {
         const val NAME = "Application"
         const val MAX_TRAINEE_IDS = 500
+        private const val TARGET_PATH = "/internal/expos/{expoId}/program-session-applications/report-targets"
     }
 }
 
