@@ -29,7 +29,13 @@ docker compose up -d --wait
 
 기본 서버 주소는 `http://localhost:8083`, DB 포트는 `35432`입니다.
 로컬 서버와 DB는 루프백 주소에만 바인딩됩니다.
-Swagger는 `/swagger-ui/index.html`, OpenAPI JSON은 `/v3/api-docs`입니다.
+Swagger는 기본 비활성화입니다. 선택 환경 변수 `SWAGGER_ENABLED=true`로 켜면
+OpenAPI JSON은 `/stat/v3/api-docs`, Swagger UI는 `/stat/swagger-ui.html`에서 GET으로 공개됩니다.
+게이트웨이 `/docs`에는 개발 설정에서 이 JSON 경로를 등록합니다.
+선택 환경 변수 `SWAGGER_INCLUDE_INTERNAL`의 기본값도 `false`이며 `/internal/**` 경로와
+그 경로에서만 사용하는 스키마를 문서에서 제거합니다. `true`이면 내부 경로에
+`X-Internal-Token` 인증을 문서화합니다. 현재 Report에는 내부 수신 API가 없습니다.
+문서 포함 여부는 실제 API 인증을 변경하지 않습니다. 두 변수 모두 생략해도 부팅 설정에 영향이 없습니다.
 Spring Security가 적용되어 있으므로 `.env`의 `LOCAL_SECURITY_USER`와
 `LOCAL_SECURITY_PASSWORD`로 로그인하세요. 예제 계정은 로컬 전용입니다.
 설정은 `application.yaml` 하나로 관리하고 환경별 값은 환경 변수로 지정합니다.
