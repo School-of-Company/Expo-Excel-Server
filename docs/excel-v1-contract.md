@@ -48,10 +48,6 @@
 
 ## 공급자 계약 상태
 
-아래 표와 `PendingReportSource` 설명은 이관 초기 기록이다. 현재 구현은
-`HttpReportSource`이며 새 접수 호환의 최신 공급자 상태와 미확정 범위는
-[접수 XLSX 호환 검증과 남은 계약](registration-xlsx-compat.md)을 따른다.
-
 `ReportSource`는 현재 `PendingReportSource`(항상 v1 실패 응답)뿐이다. 가짜 파일을 성공으로 주지 않는다. 아래 계약이 확정·배포되면 HTTP 어댑터로 바꾼다. 경로·DTO는 **제안일 뿐 구현된 것이 아니다**.
 
 | 필요한 것 | 요청 이슈 | 상태 |
