@@ -85,6 +85,7 @@ data class StandardParticipantDetail(
     val surveyAnswer: InformationResDto?,
 )
 
+/** 개인 phoneNumber와 trainingId는 새 연결 연수자에서 null일 수 있다(User #82). 문자 수신 번호는 기존 전화번호 열에 쓰지 않는다. */
 data class TraineeDetailItem(
     val traineeId: Long,
     val name: String?,
