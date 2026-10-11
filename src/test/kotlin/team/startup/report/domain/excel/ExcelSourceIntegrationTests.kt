@@ -534,6 +534,26 @@ class ExcelSourceIntegrationTests {
         admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
     }
 
+    @Test
+    fun `다른 연수자의 단건 및 신청 응답으로 출석부를 만들지 않는다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(
+            TRAINEE_DETAIL,
+            body = mapOf("traineeId" to 4, "expoId" to "e1", "name" to "다른 사람", "trainingId" to "T4", "information" to plain()),
+        )
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 4, 1)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(1, "다른 사람 강연", "ESSENTIAL")))
+        admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
+        application.requests shouldBe emptyList()
+
+        user.on(
+            TRAINEE_DETAIL,
+            body = mapOf("traineeId" to 3, "expoId" to "e1", "name" to "본인", "trainingId" to "T3", "information" to plain()),
+        )
+        admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
+        expo.requests.none { it.method == "POST" } shouldBe true
+    }
+
     private fun admin(path: String): MvcResult =
         mockMvc
             .perform(get(path).header(HttpHeaders.AUTHORIZATION, "Bearer ${TestJwt.token("ROLE_ADMIN")}"))

@@ -88,6 +88,7 @@ class HttpReportSource(
 
     override fun traineeAttendance(traineeId: Long): TraineeAttendance? {
         val trainee = user.trainee(traineeId) ?: return null
+        check(trainee.traineeId == traineeId) { "${UserClient.NAME} 서비스 대상 오류" }
         val expoSummary = expo.expo(trainee.expoId) ?: error("연수자의 박람회 없음")
         val applications = trainingApplications(listOf(traineeId))
         val programs = trainingPrograms(trainee.expoId, applications)
@@ -105,8 +106,12 @@ class HttpReportSource(
     private fun trainingApplications(traineeIds: List<Long>): List<TrainingApplication> =
         traineeIds
             .chunked(ApplicationClient.MAX_TRAINEE_IDS)
-            .flatMap(application::trainingApplications)
-            .distinctBy { it.applicationId }
+            .flatMap { ids ->
+                val requested = ids.toSet()
+                application.trainingApplications(ids).also { applications ->
+                    check(applications.all { it.traineeId in requested }) { "${ApplicationClient.NAME} 서비스 대상 오류" }
+                }
+            }.distinctBy { it.applicationId }
             .sortedBy { it.applicationId }
 
     private fun trainingPrograms(
