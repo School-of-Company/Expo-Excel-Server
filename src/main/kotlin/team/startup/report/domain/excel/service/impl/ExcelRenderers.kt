@@ -76,8 +76,14 @@ fun renderTrainees(trainees: List<Trainee>): SXSSFWorkbook {
         sheet.writeRow(
             index + 1,
             listOf(trainee.name, trainee.trainingId, trainee.phoneNumber, trainee.applicationType.koreanName)
-                .plus(dynamicKeys.map { trainee.information[it] })
-                .plus(listOf(common, selective).map { programs -> programs.map { it.title }.distinct().joinToString(", ") })
+                .plus(
+                    dynamicKeys.map { key ->
+                        val schoolKey = if ("학교명" in dynamicKeys) "학교명" else "소속"
+                        trainee.information[key] ?: trainee.school.takeIf {
+                            key == schoolKey && trainee.information["학교명"] == null && trainee.information["소속"] == null
+                        }
+                    },
+                ).plus(listOf(common, selective).map { programs -> programs.map { it.title }.distinct().joinToString(", ") })
                 .map(::safe),
             bodyStyle,
         )
@@ -166,7 +172,7 @@ fun renderTraineeAttendance(
     // ponytail: v1은 문자열이 아닌 값을 만나면 ClassCastException을 삼켜 그 앞까지 반영한 값을 쓴다
     runCatching {
         val info = attendance.information
-        schoolName = info["학교명"] as String? ?: info["소속"] as String? ?: "학교명"
+        schoolName = info["학교명"] as String? ?: info["소속"] as String? ?: attendance.school ?: "학교명"
         traineeName = info["이름"] as String? ?: traineeName
         trainingId = info["연수원아이디"] as String? ?: trainingId
     }

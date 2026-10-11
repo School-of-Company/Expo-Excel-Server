@@ -52,6 +52,7 @@ data class Trainee(
     val information: Map<String, String?>,
     // 신청 순서(applicationId 오름차순)
     val programs: List<TrainingProgram>,
+    val school: String? = null,
 )
 
 data class TrainingProgram(
@@ -80,4 +81,5 @@ data class TraineeAttendance(
     val information: Map<String, Any?>,
     // 신청 순서(applicationId 오름차순)
     val programs: List<TrainingProgram>,
+    val school: String? = null,
 )
