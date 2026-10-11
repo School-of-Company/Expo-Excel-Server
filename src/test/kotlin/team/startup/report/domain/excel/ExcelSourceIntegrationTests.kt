@@ -7,6 +7,8 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldMatch
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.string.shouldStartWith
+import org.apache.poi.ss.usermodel.BorderStyle
+import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.AfterAll
@@ -186,6 +188,82 @@ class ExcelSourceIntegrationTests {
                 listOf("연수자1", "T1", "010-1", "사전 등록", "가초", "수학, 과학", "", "기조 강연", "특강, AI"),
                 listOf("연수자2", "T2", "010-2", "현장 등록", "", "", "5년", "", ""),
             )
+        assertProviderTokens()
+    }
+
+    @Test
+    fun `연수자 - null과 누락 필드도 ID 순서와 개인 전화번호 및 신청을 유지한다`() {
+        expo.on(EXPO, body = expoBody())
+        val linked =
+            trainee(2, "PRE", plain()) +
+                mapOf("trainingId" to null, "phoneNumber" to null, "notificationPhoneNumber" to "010-representative")
+        val different = trainee(1, "FIELD", plain()) + mapOf("notificationPhoneNumber" to "010-representative")
+        val missing = trainee(3, "PRE", plain()) - setOf("trainingId", "phoneNumber")
+        user.on(TRAINEE_PAGE, body = page(listOf(linked, different), 2))
+        user.on("$TRAINEE_PAGE&cursor=2", body = page(listOf(missing, trainee(4, "PRE", plain())), null))
+        application.on(
+            TRAINING_APPLICATIONS,
+            body = listOf(trainingApplication(30, 3, 102), trainingApplication(20, 2, 102), trainingApplication(10, 2, 101)),
+        )
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(102, "선택", "CHOICE"), trainingProgram(101, "공통", "ESSENTIAL")))
+
+        val result = admin("/excel/e1")
+
+        result.response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+            workbook.numberOfSheets shouldBe 1
+            val sheet = workbook.getSheet("사전 교원연수자 정보")
+            sheet.values() shouldBe
+                listOf(
+                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "공통 강연", "선택 강연"),
+                    listOf("연수자1", "T1", "010-1", "현장 등록", "", ""),
+                    listOf("연수자2", "", "", "사전 등록", "공통", "선택"),
+                    listOf("연수자3", "", "", "사전 등록", "", "선택"),
+                    listOf("연수자4", "T4", "010-4", "사전 등록", "", ""),
+                )
+            sheet.cell(0, 2).assertDarkHeader()
+            sheet.cell(2, 2).cellStyle.borderBottom shouldBe BorderStyle.THIN
+            sheet.getColumnWidth(2) shouldBe 20 * 256
+        }
+        StubProvider.JSON
+            .readTree(application.requests.single().body)["traineeIds"]
+            .values()
+            .map { it.asLong() } shouldBe
+            listOf(1L, 2L, 3L, 4L)
+        assertProviderTokens()
+    }
+
+    @Test
+    fun `출석부 - null 또는 누락 연수 번호는 빈 셀이고 프로그램 시작일과 기존 서식을 유지한다`() {
+        expo.on(EXPO, body = expoBody())
+        application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 3, 101)))
+        expo.on(TRAINING_BATCH, body = listOf(trainingProgram(101, "기조 강연", "ESSENTIAL", "2026-10-09 10:00", "2026-10-09 11:00")))
+        val detail =
+            mapOf(
+                "traineeId" to 3,
+                "expoId" to "e1",
+                "name" to "연수자3",
+                "trainingId" to null,
+                "information" to plain("소속" to "광주초"),
+            )
+        listOf(detail, detail - "trainingId").forEach { response ->
+            user.on(TRAINEE_DETAIL, body = response)
+
+            val result = admin("/excel/trainee/3")
+
+            result.response.status shouldBe 200
+            result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Trainee_Attendance_연수자3.xlsx\""
+            XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
+                workbook.numberOfSheets shouldBe 1
+                val sheet = workbook.getSheet("출석부")
+                sheet.values()[2][2] shouldBe "2026.10.09.(금)"
+                sheet.values()[8] shouldBe listOf("1", "광주초", "연수자3", null, null, null, null, null, null, null)
+                DataFormatter().formatCellValue(sheet.cell(10, 9)) shouldBe ""
+                sheet.cell(10, 9).cellStyle.borderBottom shouldBe BorderStyle.THIN
+                sheet.getColumnWidth(9) shouldBe 3800
+                sheet.mergedRegions.map { it.formatAsString() } shouldContainAll listOf("A1:J1", "D8:H8")
+            }
+        }
         assertProviderTokens()
     }
 
