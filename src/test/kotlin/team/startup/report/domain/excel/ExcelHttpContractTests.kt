@@ -6,6 +6,7 @@ import io.kotest.matchers.string.shouldStartWith
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -32,6 +33,11 @@ import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExc
 import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
+import team.startup.report.global.client.ExpoClient
+import team.startup.report.global.client.InformationResDto
+import team.startup.report.global.client.StubProvider
+import team.startup.report.global.client.TraineeDetail
+import team.startup.report.global.client.UserClient
 import team.startup.report.global.security.ExcelSecurityConfig
 import team.startup.report.support.TestJwt
 import java.io.ByteArrayInputStream
@@ -186,6 +192,17 @@ class ExcelHttpContractTests {
 
     @TestConfiguration
     class FakeSourceConfig {
+        @Bean
+        fun expoClient(): ExpoClient = Mockito.mock(ExpoClient::class.java)
+
+        @Bean
+        fun userClient(): UserClient =
+            Mockito.mock(UserClient::class.java).also { client ->
+                Mockito.`when`(client.trainee(Mockito.anyLong())).thenAnswer { invocation ->
+                    TraineeDetail(invocation.getArgument(0), "expo-1", null, null, InformationResDto(StubProvider.JSON.readTree("{}")))
+                }
+            }
+
         @Bean
         @Primary
         fun fakeReportSource() = FakeReportSource()

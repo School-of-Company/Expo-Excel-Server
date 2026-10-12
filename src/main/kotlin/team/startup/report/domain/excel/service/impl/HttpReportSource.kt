@@ -17,6 +17,7 @@ import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.InformationResDto
 import team.startup.report.global.client.TrainingApplication
 import team.startup.report.global.client.UserClient
+import team.startup.report.global.security.ExcelAccessInterceptor
 
 /**
  * 공급자 내부 API를 조합한 원천 조회. 행사·프로그램·연수자가 없으면 null(v1 대상별 오류), 공급자 장애는 예외(엔드포인트별 v1 500 감싸기)다.
@@ -88,7 +89,7 @@ class HttpReportSource(
     }
 
     override fun traineeAttendance(traineeId: Long): TraineeAttendance? {
-        val trainee = user.trainee(traineeId) ?: return null
+        val trainee = ExcelAccessInterceptor.authorizedTrainee(traineeId) ?: user.trainee(traineeId) ?: return null
         check(trainee.traineeId == traineeId) { "${UserClient.NAME} 서비스 대상 오류" }
         val expoSummary = expo.expo(trainee.expoId) ?: error("연수자의 박람회 없음")
         val applications = trainingApplications(listOf(traineeId))
