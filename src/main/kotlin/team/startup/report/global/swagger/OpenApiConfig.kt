@@ -6,6 +6,7 @@ import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.security.SecurityRequirement
 import io.swagger.v3.oas.models.security.SecurityScheme
+import io.swagger.v3.oas.models.servers.Server
 import org.springdoc.core.customizers.OpenApiCustomizer
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
@@ -19,6 +20,7 @@ class OpenApiConfig(
     @Bean
     fun reportOpenApi(): OpenAPI =
         OpenAPI()
+            .servers(listOf(Server().url("/")))
             .info(
                 Info()
                     .title("Expo Report Server API")
