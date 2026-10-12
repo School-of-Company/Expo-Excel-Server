@@ -1,5 +1,6 @@
 package team.startup.report.swagger
 
+import com.sun.net.httpserver.HttpServer
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController
 import team.startup.report.support.TestClients
 import team.startup.report.support.TestJwt
 import tools.jackson.databind.json.JsonMapper
+import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -78,6 +80,40 @@ class SwaggerDisabledTests : SwaggerTestSupport() {
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = ["swagger.enabled=true"])
 @ActiveProfiles("swagger-test")
 class SwaggerEnabledTests : SwaggerTestSupport() {
+    @Test
+    fun `Host를 내부 인스턴스 주소로 바꾸는 프록시를 거쳐도 서버 URL은 상대 경로다`() {
+        val proxy = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        proxy.createContext("/stat/v3/api-docs") { exchange ->
+            exchange.use {
+                val upstream =
+                    request(
+                        "/stat/v3/api-docs",
+                        headers =
+                            mapOf(
+                                "X-Forwarded-Host" to "docs.example.test",
+                                "X-Forwarded-Proto" to "https",
+                            ),
+                    )
+                val bytes = upstream.body().toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(upstream.statusCode(), bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+        }
+        proxy.start()
+        try {
+            val response =
+                HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI("http://127.0.0.1:${proxy.address.port}/stat/v3/api-docs")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+            response.statusCode() shouldBe 200
+            JSON.readTree(response.body()).path("servers").toString() shouldBe """[{"url":"/"}]"""
+        } finally {
+            proxy.stop(0)
+        }
+    }
+
     @Test
     fun `공개 문서는 내부 경로 전용 스키마를 제거하고 공용 중첩 스키마를 유지한다`() {
         val api = document()
