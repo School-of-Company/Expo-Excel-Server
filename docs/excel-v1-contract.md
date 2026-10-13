@@ -64,6 +64,7 @@
 ## 인증·배포
 
 - `JWT_PUBLIC_KEY`(RS256 SPKI PEM)로 서명을 검증한다. `role` 클레임이 `ROLE_ADMIN`이어야 하고, `sub`는 숫자, 수명은 15분 이하(Expo-Expo-Server와 같은 규칙)다. `X-User-Id`, `X-User-Role` 헤더는 무시한다.
+- 로컬 인증 이후 모든 다운로드에서 Expo의 행사 `APPLICATION_READ` 계약을 원본 Bearer와 내부 토큰으로 검증한다. 권한 401/403/404는 유지하며 장애·응답 불일치는 502다. 기존 데이터 조회·파일 오류의 v1 규칙은 유지한다. 개인 출석부는 연수자 원천으로 행사 확인 후 권한을 검사한다. 상세 정책과 현재 GLOBAL_ADMIN 제한은 `docs/excel-download.md`를 참고한다.
 - Gateway 설정(Config-Server `gateway-*.yml`)에는 `/excel`·`/stat` → `expo-report-server`가 이미 있다. 운영 반영 여부는 확인하지 못했다. `/stat`은 이번 범위가 아니다.
 - `/excel` 밖의 경로는 `SecurityConfig`의 체인이 맡는다(모니터링 GET만 익명 허용, 나머지는 인증 필요).
 

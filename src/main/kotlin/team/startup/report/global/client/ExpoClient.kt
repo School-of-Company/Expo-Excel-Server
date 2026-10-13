@@ -1,12 +1,51 @@
 package team.startup.report.global.client
 
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
+import org.springframework.web.client.RestClientResponseException
 import team.startup.report.domain.excel.service.TrainingCategory
+import team.startup.report.global.exception.ExpectedException
+import tools.jackson.databind.JsonNode
 
 /** Expo-Expo-Server 내부 조회(PR #50). */
 class ExpoClient(
     private val http: RestClient,
 ) {
+    fun requireAdminAccess(
+        expoId: String,
+        adminId: Long,
+        authorization: String,
+    ) {
+        try {
+            val body =
+                http
+                    .get()
+                    .uri("/internal/expo/{expoId}/admin-access", expoId)
+                    .header(HttpHeaders.AUTHORIZATION, authorization)
+                    .retrieve()
+                    .body(JsonNode::class.java)
+                    ?: error("권한 응답 없음")
+            check(body.path("adminId").isIntegralNumber && body.path("adminId").canConvertToLong())
+            check(body.path("adminId").asLong() == adminId && adminId > 0)
+            check(body.path("expoId").isString && body.path("expoId").asString() == expoId)
+            check(body.path("permission").asString() == "APPLICATION_READ")
+            check(body.path("policyVersion").asString() == "GLOBAL_ADMIN_APPLICATION_READ_V1")
+            check(body.path("scope").asString() == "GLOBAL_ADMIN")
+        } catch (e: RestClientResponseException) {
+            val status =
+                when (e.statusCode.value()) {
+                    401 -> HttpStatus.UNAUTHORIZED
+                    403 -> HttpStatus.FORBIDDEN
+                    404 -> HttpStatus.NOT_FOUND
+                    else -> HttpStatus.BAD_GATEWAY
+                }
+            throw ExpectedException(status, "행사 조회 권한을 확인할 수 없습니다.")
+        } catch (_: Exception) {
+            throw ExpectedException(HttpStatus.BAD_GATEWAY, "행사 조회 권한을 확인할 수 없습니다.")
+        }
+    }
+
     /** 없으면 null */
     fun expo(expoId: String): ExpoSummary? = http.get().uri("/internal/expo/{expoId}", expoId).fetchOrNull(NAME)
 
