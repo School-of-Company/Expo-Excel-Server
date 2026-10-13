@@ -12,9 +12,9 @@ enum class DownloadScope { SELECTED, FILTER }
 
 @Schema(description = "기존 XLSX 양식과 신청 대상 범위. 화면 page/size와 알 수 없는 필드는 허용하지 않습니다.")
 data class DownloadRequest(
-    @field:Schema(description = "출력 양식", example = "PROGRAM")
+    @field:Schema(description = "출력 양식", example = "PROGRAM", requiredMode = Schema.RequiredMode.REQUIRED)
     val template: ExcelTemplate,
-    @field:Schema(description = "SELECTED는 선택 신청, FILTER는 필터 전체", example = "SELECTED")
+    @field:Schema(description = "SELECTED는 선택 신청, FILTER는 필터 전체", example = "SELECTED", requiredMode = Schema.RequiredMode.REQUIRED)
     val scope: DownloadScope,
     @field:Schema(description = "선택 범위의 UUID 신청 ID(중복 없이 1–1000개). 필터와 동시 지정 불가", example = "[\"22222222-2222-2222-2222-222222222222\"]")
     val applicationIds: List<UUID>? = null,

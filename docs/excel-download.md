@@ -48,7 +48,11 @@ TRAINEE/ATTENDANCE의 전체 범위는 `programType: TRAINING`을 적용한다. 
 
 신규 연수 회차의 제목·일정·구분은 신청 당시 `definition`을 사용한다. 등록 답변과 프로그램 답변은 각각 제출 당시 `questions`로 복원한다. 등록 답변을 우선하며 프로그램 답변은 이미 존재하는 등록 열의 null 값, 출석부의 학교명/소속만 보완한다. 이름·개인 전화번호·연수원 ID를 프로그램 답변으로 덮어쓰지 않는다. 여러 회차의 답변이 충돌하면 회차를 좁히도록 400을 반환한다. 프로그램 명단의 학번·서명·비고에는 승인된 연결 규칙이 없어 기존 빈칸을 유지한다. 임의로 새 프로그램 답변 열을 추가하지 않는다.
 
-행사 없음은 404다. Application의 대상 검증 오류(400), 누락/타 행사 선택(404), 스냅샷 만료(410), 전체 상한 초과(413)는 상태를 유지한다. 그 밖의 원천 장애·응답 대상 불일치·응답 형식 오류는 502다. 오류 본문은 기존 `status/message` 형식이며 공급자 본문·토큰은 노출하지 않는다.
+`DownloadRequest.template`과 `scope`는 요청 본문과 생성 OpenAPI 스키마에서 모두 필수다. GET 4종의 생성 OpenAPI 응답에는 404·502가 포함된다.
+
+행사 없음은 404다. Application의 대상 검증 오류(400), 누락/타 행사 선택(404), 스냅샷 만료(410), 전체 상한 초과(413)는 상태를 유지한다. 현재 Application 스냅샷 생성 API는 10,000건 초과를 422로 반환하므로 이 호출의 422만 Report의 413으로 변환한다. 선택 조회·다음 페이지의 예상하지 못한 422는 502다. Report 자체에서도 전체 건수가 10,000건을 초과하면 413, 응답 계약 검증을 통과한 스냅샷의 시간 만료는 410이다. 잘못된 선택 ID·음수/불일치 건수·타 행사·중복 항목·반복 커서·스냅샷 메타데이터 변경 등 응답 계약 오류는 502이며, 만료 시각을 변조한 응답도 410으로 취급하지 않는다. 그 밖의 원천 장애·응답 형식 오류도 502다. 오류 본문은 기존 `status/message` 형식이며 공급자 본문·토큰은 노출하지 않는다.
+
+GET 연수자 정보와 개인 출석부는 `Content-Disposition: attachment; filename*=UTF-8''{percent-encoded filename}`을 사용한다. 디코딩한 이름은 각각 `교원연수자_정보_{yyyyMMdd_HHmmss}.xlsx`(Asia/Seoul), `Trainee_Attendance_{연수자 이름}.xlsx`로 유지한다. 공백은 `%20`으로, 따옴표·세미콜론·개행 등은 UTF-8 바이트의 `%HH`로 인코딩한다. 기존 엔드포인트와 XLSX 셀·양식은 유지한다.
 
 모든 4종 GET과 POST 다운로드는 로컬 RS256 `ROLE_ADMIN` 검증 후 Expo `GET /internal/expo/{expoId}/admin-access`를 다시 호출한다. 원본 JWT의 Bearer 토큰과 기존 `EXPO_INTERNAL_TOKEN`을 함께 전달하며 응답 행사, JWT subject와 관리자 ID, `APPLICATION_READ`, `GLOBAL_ADMIN_APPLICATION_READ_V1`, `GLOBAL_ADMIN`을 검사한다. 공급자 401/403/404는 유지하고 장애/계약 오류는 502로 차단한다. 관리자 ID를 입력이나 Gateway 헤더에서 받지 않으며 권한 판단을 다른 요청에 캐시하지 않는다.
 

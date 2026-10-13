@@ -134,6 +134,15 @@ class SwaggerEnabledTests : SwaggerTestSupport() {
         val api = document()
         val old = api.path("paths").path("/excel/program/{expo_id}").path("get")
         listOf("200", "400", "401", "403", "500").forEach { old.path("responses").has(it) shouldBe true }
+        listOf("/excel/{expo_id}", "/excel/standard/{expo_id}", "/excel/program/{expo_id}", "/excel/trainee/{trainee_id}").forEach { path ->
+            val responses =
+                api
+                    .path("paths")
+                    .path(path)
+                    .path("get")
+                    .path("responses")
+            listOf("404", "502").forEach { responses.has(it) shouldBe true }
+        }
         val download = api.path("paths").path("/excel/expos/{expoId}/downloads").path("post")
         listOf("200", "400", "401", "403", "404", "410", "413", "500", "502").forEach { download.path("responses").has(it) shouldBe true }
         download.path("security").get(0).has("bearerAuth") shouldBe true
@@ -158,6 +167,17 @@ class SwaggerEnabledTests : SwaggerTestSupport() {
             .asString()
             .contains("회차") shouldBe true
         filter.path("search").path("example").asString() shouldBe "예시 강연"
+    }
+
+    @Test
+    fun `생성된 다운로드 요청 스키마는 양식과 범위를 필수로 표시한다`() {
+        val required =
+            document()
+                .path("components")
+                .path("schemas")
+                .path("DownloadRequest")
+                .path("required")
+        required.values().map { it.asString() }.toSet() shouldBe setOf("template", "scope")
     }
 
     @Test
