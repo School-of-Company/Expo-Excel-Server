@@ -3,7 +3,7 @@
 기준: Expo-Server develop `858101864235c9492fb2bd37ccf1df5346958d66` `domain/excel` (Spring Boot 3.2.10, Tomcat 10.1.30)
 클라이언트: Expo-Client `getTraineeProgramExcelFile.ts`, `getStandardExcelFile.ts`, `getStandardProgramExcelFile.ts`, `getTraineeExcelFile.ts` — 응답을 blob으로 받아 항상 `export.xlsx`로 저장하고, 실패는 상태코드만 보고 토스트를 띄운다.
 
-이 문서의 경로·요청·응답은 **바꾸지 않는다**. 결함 수정이나 호환되지 않는 변경은 아래 "제안" 절에만 적고, 합의 전에는 적용하지 않는다.
+이 문서의 경로·요청·XLSX 양식은 유지한다. #46에서 승인한 한글 파일명의 `filename*` 인코딩 변경은 아래 HTTP 계약에 반영하였다. 그 밖의 제안은 합의 전에는 적용하지 않는다.
 셀·서식 계약은 `ExcelRenderersTests`, HTTP 계약은 `ExcelHttpContractTests`가 고정한다(ZIP 바이트가 아니라 셀 값·형식·서식·병합으로 비교).
 
 ## HTTP 계약
@@ -12,13 +12,13 @@
 
 | 경로 | 성공 `Content-Disposition` | 시트 | 실패 (모두 500) |
 |---|---|---|---|
-| `/excel/{expo_id}` | `attachment; filename="교원연수자_정보_{yyyyMMdd_HHmmss}.xlsx"` (Asia/Seoul) | 사전 교원연수자 정보 | 행사 없음·연수자 0명·그 밖의 오류: `예상치 못한 오류 발생` |
+| `/excel/{expo_id}` | `attachment; filename*=UTF-8''{UTF-8로 percent-encode한 교원연수자_정보_{yyyyMMdd_HHmmss}.xlsx}` (Asia/Seoul) | 사전 교원연수자 정보 | 행사 없음·연수자 0명·그 밖의 오류: `예상치 못한 오류 발생` |
 | `/excel/standard/{expo_id}` | `attachment; filename*=UTF-8''Participant_Information.xlsx` | 박람회 참가자 정보 | 행사 없음: `엑셀 파일 생성 중 오류 발생: null`, 0명: `엑셀 파일 생성 중 오류 발생: 참가자 정보가 존재하지 않습니다.`, 그 밖: `엑셀 파일 생성 중 오류 발생: {원인}` |
 | `/excel/program/{expo_id}?programId={Long}` | `attachment; filename="Program_Participant_Information.xlsx"` | 프로그램 참가자 정보 | 프로그램 없음·행사 소속 아님·그 밖: `엑셀 파일 생성 중 오류 발생`. **0명은 머리글만 있는 파일로 200** |
-| `/excel/trainee/{trainee_id}` | `attachment; filename="Trainee_Attendance_{연수자 이름}.xlsx"` | 출석부 | 없음: `해당 연수자를 찾을 수 없습니다.`, 신청 프로그램 없음: `해당 연수자가 신청한 프로그램이 없습니다.` |
+| `/excel/trainee/{trainee_id}` | `attachment; filename*=UTF-8''{UTF-8로 percent-encode한 Trainee_Attendance_{연수자 이름}.xlsx}` | 출석부 | 없음: `해당 연수자를 찾을 수 없습니다.`, 신청 프로그램 없음: `해당 연수자가 신청한 프로그램이 없습니다.` |
 
 - `programId` 누락은 400, `programId`·`trainee_id`가 숫자가 아니면 500(v1 `RuntimeException` 처리기, 메시지는 Spring 변환 오류 문구).
-- 한글이 든 `Content-Disposition`(위 1·4행)은 Tomcat이 헤더를 **통째로 버린다**. Tomcat 10.1.30(v1)과 11.0.24(v2)에서 같은 동작을 직접 확인했다. 같은 헤더 문자열을 설정하므로 wire 결과도 v1과 같다.
+- v1의 한글 원문 `filename="…"`은 Tomcat이 헤더를 통째로 버렸다. #46에서 위 1·4행을 ASCII만 포함하는 `filename*=UTF-8''…`로 변경한다. 파일명 의미와 시간 형식은 유지하며, 공백은 `%20`, 따옴표·세미콜론·개행 등도 `%HH`로 인코딩한다. HTTP 테스트는 실제 Tomcat 응답 헤더와 디코딩한 파일명·XLSX를 검사한다.
 - 인증 실패는 401, 권한 없음·허용하지 않은 메서드나 경로는 403(v1과 같은 상태코드).
 
 ## 시트 규칙 (요약, 상세는 테스트)
@@ -38,7 +38,7 @@
 
 ## 제안 (미적용, 합의 필요)
 
-1. 한글 파일명 헤더가 버려지는 문제는 `filename*=UTF-8''…`로 고칠 수 있다(클라이언트는 영향 없음).
+1. 한글 파일명 헤더 인코딩은 #46에서 적용하였다(위 HTTP 계약 참조).
 2. 출석부 장소·담당자가 하드코딩되어 있다. 행사 정보에서 가져오도록 바꿀 수 있다.
 3. 출석부의 모든 날짜 블록에 같은 강연이 반복된다. 날짜별 강연으로 나눌 수 있다.
 4. 일반 참가자의 신청 폼 열이 첫 참가자 키만 쓰므로, 문항이 다른 참가자의 답이 빠진다.

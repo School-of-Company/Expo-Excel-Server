@@ -1,6 +1,7 @@
 package team.startup.report.domain.excel.service.impl
 
 import org.springframework.stereotype.Service
+import org.springframework.web.util.UriUtils
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.TraineeInfoToExcelService
@@ -18,7 +19,8 @@ class TraineeInfoToExcelServiceImpl(
             val trainees = source.trainees(expoId) ?: error("박람회 없음")
             check(trainees.isNotEmpty()) { "연수자가 존재하지 않습니다." }
             val timestamp = LocalDateTime.now(SEOUL).format(TIMESTAMP)
-            ExcelFile("attachment; filename=\"교원연수자_정보_$timestamp.xlsx\"", renderTrainees(trainees))
+            val filename = UriUtils.encode("교원연수자_정보_$timestamp.xlsx", Charsets.UTF_8)
+            ExcelFile("attachment; filename*=UTF-8''$filename", renderTrainees(trainees))
         }
 
     private companion object {

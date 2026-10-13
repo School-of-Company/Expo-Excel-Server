@@ -1,6 +1,7 @@
 package team.startup.report.domain.excel.service.impl
 
 import org.springframework.stereotype.Service
+import org.springframework.web.util.UriUtils
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.TraineeAttendanceToExcelService
@@ -19,8 +20,9 @@ class TraineeAttendanceToExcelServiceImpl(
                     .distinct()
                     .sorted()
             if (dates.isEmpty()) throw excelFailure("해당 연수자가 신청한 프로그램이 없습니다.")
+            val filename = UriUtils.encode("Trainee_Attendance_${attendance.traineeName}.xlsx", Charsets.UTF_8)
             ExcelFile(
-                "attachment; filename=\"Trainee_Attendance_${attendance.traineeName}.xlsx\"",
+                "attachment; filename*=UTF-8''$filename",
                 renderTraineeAttendance(attendance, dates),
             )
         }
