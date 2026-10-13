@@ -52,6 +52,16 @@ import team.startup.report.global.exception.ErrorResponse
             description = "v1 호환: 대상 없음·숫자 변환 실패·원천 오류·파일 생성 실패",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
+        ApiResponse(
+            responseCode = "404",
+            description = "권한 확인 대상 행사 없음",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "행사 권한 공급자 장애·계약 오류",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
     ],
 )
 class ExcelController(

@@ -46,6 +46,17 @@ class ExcelDownloadTests {
             it.requests.clear()
         }
         expo.on("GET /internal/expo/$EVENT", body = mapOf("title" to "박람회"))
+        expo.on(
+            "GET /internal/expo/$EVENT/admin-access",
+            body =
+                mapOf(
+                    "expoId" to EVENT,
+                    "adminId" to 1,
+                    "permission" to "APPLICATION_READ",
+                    "policyVersion" to "GLOBAL_ADMIN_APPLICATION_READ_V1",
+                    "scope" to "GLOBAL_ADMIN",
+                ),
+        )
     }
 
     @AfterEach
@@ -209,7 +220,8 @@ class ExcelDownloadTests {
                 mapOf("template" to "STANDARD", "scope" to "FILTER", "filter" to mapOf("search" to " ")),
             )
         invalid.forEach { send(it).status shouldBe 400 }
-        listOf(application, user, expo).sumOf { it.requests.size } shouldBe 0
+        listOf(application, user).sumOf { it.requests.size } shouldBe 0
+        expo.requests.all { it.uri.endsWith("/admin-access") } shouldBe true
     }
 
     @Test

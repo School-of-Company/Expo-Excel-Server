@@ -82,11 +82,23 @@ class ExcelSourceIntegrationTests {
     private lateinit var mockMvc: MockMvc
 
     @BeforeEach
-    fun reset() =
+    fun reset() {
         listOf(user, application, expo).forEach {
             it.routes.clear()
             synchronized(it.requests) { it.requests.clear() }
         }
+        expo.on(
+            "GET /internal/expo/e1/admin-access",
+            body =
+                mapOf(
+                    "expoId" to "e1",
+                    "adminId" to 1,
+                    "permission" to "APPLICATION_READ",
+                    "policyVersion" to "GLOBAL_ADMIN_APPLICATION_READ_V1",
+                    "scope" to "GLOBAL_ADMIN",
+                ),
+        )
+    }
 
     @Test
     fun `일반 참가자 - 커서 두 페이지를 ID 순으로 합치고 스냅샷으로 답변을 복원한다`(output: CapturedOutput) {
@@ -384,7 +396,7 @@ class ExcelSourceIntegrationTests {
         expo.on(EXPO, body = expoBody())
         application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
         admin("/excel/trainee/3").assertError(500, "해당 연수자가 신청한 프로그램이 없습니다.")
-        expo.requests.map { it.method } shouldBe listOf("GET")
+        expo.requests.filterNot { it.uri.endsWith("/admin-access") }.map { it.method } shouldBe listOf("GET")
     }
 
     @Test
@@ -410,7 +422,7 @@ class ExcelSourceIntegrationTests {
         admin("/excel/program/e1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
 
         user.on(TRAINEE_DETAIL, 500, "secret-body")
-        admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
+        admin("/excel/trainee/3").assertError(502, "연수자의 행사 정보를 확인할 수 없습니다.")
 
         TOKENS.forEach { output.all shouldNotContain it }
         output.all shouldNotContain "secret-body"
@@ -543,7 +555,7 @@ class ExcelSourceIntegrationTests {
         )
         application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 4, 1)))
         expo.on(TRAINING_BATCH, body = listOf(trainingProgram(1, "다른 사람 강연", "ESSENTIAL")))
-        admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
+        admin("/excel/trainee/3").assertError(502, "연수자의 행사 정보를 확인할 수 없습니다.")
         application.requests shouldBe emptyList()
 
         user.on(

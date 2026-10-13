@@ -14,6 +14,7 @@ class StubProvider(
         val uri: String,
         val token: String?,
         val body: String,
+        val authorization: String? = null,
     )
 
     class Reply(
@@ -33,6 +34,7 @@ class StubProvider(
                         exchange.requestURI.toString(),
                         exchange.requestHeaders.getFirst("X-Internal-Token"),
                         exchange.requestBody.readBytes().decodeToString(),
+                        exchange.requestHeaders.getFirst("Authorization"),
                     )
                 synchronized(requests) { requests += request }
                 val reply = routes["${request.method} ${request.uri}"]?.invoke(request) ?: Reply(500, """{"status":500}""")
@@ -60,6 +62,8 @@ class StubProvider(
             readTimeout,
             JSON,
         )
+
+    fun url() = "http://127.0.0.1:${server.address.port}"
 
     override fun close() = server.stop(0)
 
