@@ -70,8 +70,7 @@ class ExcelAccessTests {
                 access() + ("permission" to "APPLICATION_CANCEL"),
                 access() + ("scope" to "EXPO_ADMIN"),
                 access() + ("policyVersion" to "OTHER"),
-                access() - "permission",
-            )
+            ) + access().keys.map { access() - it }
         invalid.forEach { payload ->
             expo.on(ACCESS, body = payload)
             send("/excel/standard/$EVENT").statusCode() shouldBe 502
