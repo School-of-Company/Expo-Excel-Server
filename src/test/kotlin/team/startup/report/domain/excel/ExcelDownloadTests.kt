@@ -5,6 +5,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -175,6 +177,7 @@ class ExcelDownloadTests {
         val bodies =
             listOf(
                 mapOf("items" to emptyList<Any>(), "totalElements" to 1),
+                mapOf("items" to listOf(target(SECOND)), "totalElements" to 1),
                 mapOf("items" to listOf(target(FIRST), target(FIRST)), "totalElements" to 1),
                 mapOf("items" to listOf(target(FIRST) + ("expoId" to UUID.randomUUID())), "totalElements" to 1),
                 mapOf(
@@ -190,11 +193,14 @@ class ExcelDownloadTests {
     }
 
     @Test
-    fun `스냅샷 변경 반복 커서 중복 항목 건수 누락과 만료를 차단한다`() {
+    fun `스냅샷 변경 반복 커서 중복 항목과 건수 오류는 502다`() {
         application.on("POST $TARGET", body = snapshot(listOf(target(FIRST)), "next"))
         val invalid =
             listOf(
                 snapshot(listOf(target(SECOND)), null) + ("snapshotId" to UUID.randomUUID()),
+                snapshot(listOf(target(SECOND)), null) + ("snapshotAt" to Instant.EPOCH),
+                snapshot(listOf(target(SECOND)), null) + ("expiresAt" to Instant.EPOCH),
+                snapshot(listOf(target(SECOND)), null, 3),
                 snapshot(listOf(target(FIRST)), null),
                 snapshot(emptyList(), null),
                 snapshot(listOf(target(SECOND)), "next"),
@@ -203,8 +209,51 @@ class ExcelDownloadTests {
             application.on("GET $TARGET?cursor=next", body = it)
             send(mapOf("template" to "STANDARD", "scope" to "FILTER")).status shouldBe 502
         }
-        application.on("POST $TARGET", body = snapshot(emptyList(), null) + ("expiresAt" to Instant.EPOCH))
+        application.on("POST $TARGET", body = snapshot(emptyList(), null, -1))
         send(mapOf("template" to "STANDARD", "scope" to "FILTER")).status shouldBe 502
+    }
+
+    @Test
+    fun `Report 자체 전체 상한 초과는 413이며 등록 원천을 조회하지 않는다`() {
+        application.on("POST $TARGET", body = snapshot(listOf(target(FIRST)), "next", 10_001))
+        val response = send(mapOf("template" to "STANDARD", "scope" to "FILTER"))
+        response.status shouldBe 413
+        response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe null
+        application.requests.size shouldBe 1
+        user.requests.size shouldBe 0
+    }
+
+    @Test
+    fun `유효한 스냅샷의 시간 만료만 410이며 응답 계약 오류는 502다`() {
+        val expired = snapshot(listOf(target(FIRST)), null, 1) + ("expiresAt" to Instant.parse("2026-01-01T00:15:00Z"))
+        application.on("POST $TARGET", body = expired)
+        val response = send(mapOf("template" to "STANDARD", "scope" to "FILTER"))
+        response.status shouldBe 410
+        response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe null
+        val invalid =
+            listOf(
+                expired + ("totalElements" to 2),
+                expired + ("items" to listOf(target(FIRST) + ("expoId" to UUID.randomUUID()))),
+            )
+        invalid.forEach {
+            application.on("POST $TARGET", body = it)
+            send(mapOf("template" to "STANDARD", "scope" to "FILTER")).status shouldBe 502
+        }
+        user.requests.size shouldBe 0
+    }
+
+    @Test
+    fun `Application 스냅샷 생성의 상한 422만 Report 413으로 변환한다`() {
+        application.on("POST $TARGET", 422, "private-provider-limit")
+        val response = send(mapOf("template" to "STANDARD", "scope" to "FILTER"))
+        response.status shouldBe 413
+        response.contentAsString.contains("private-provider-limit") shouldBe false
+        application.on("POST $TARGET/selection", 422, "private-invalid-selection")
+        send(selected("STANDARD", listOf(FIRST))).status shouldBe 502
+        application.on("POST $TARGET", body = snapshot(listOf(target(FIRST)), "next"))
+        application.on("GET $TARGET?cursor=next", 422, "private-invalid-page")
+        send(mapOf("template" to "STANDARD", "scope" to "FILTER")).status shouldBe 502
+        user.requests.size shouldBe 0
     }
 
     @Test
@@ -218,6 +267,8 @@ class ExcelDownloadTests {
                 mapOf("template" to "STANDARD", "scope" to "FILTER", "filter" to mapOf("size" to 20)),
                 mapOf("template" to "PROGRAM", "scope" to "FILTER", "programId" to 7),
                 mapOf("template" to "STANDARD", "scope" to "FILTER", "filter" to mapOf("search" to " ")),
+                mapOf("scope" to "FILTER"),
+                mapOf("template" to "STANDARD"),
             )
         invalid.forEach { send(it).status shouldBe 400 }
         listOf(application, user).sumOf { it.requests.size } shouldBe 0
@@ -242,12 +293,15 @@ class ExcelDownloadTests {
         application.requests.size shouldBe 0
     }
 
-    @Test
-    fun `전체 1001신청은 페이지 500경계를 넘어 읽고 사람 한 명으로 중복 제거한다`() {
-        val targets = (1L..1001L).map { target(UUID(0, it)) }
-        application.on("POST $TARGET", body = snapshot(targets.take(500), "page2", 1001))
-        application.on("GET $TARGET?cursor=page2", body = snapshot(targets.drop(500).take(500), "page3", 1001))
-        application.on("GET $TARGET?cursor=page3", body = snapshot(targets.takeLast(1), null, 1001))
+    @ParameterizedTest
+    @ValueSource(ints = [1001, 10_000])
+    fun `상한 이내 전체 신청은 페이지 500경계를 넘어 읽고 사람 한 명으로 중복 제거한다`(total: Int) {
+        val pages = (1L..total.toLong()).map { target(UUID(0, it)) }.chunked(500)
+        pages.forEachIndexed { index, items ->
+            val route = if (index == 0) "POST $TARGET" else "GET $TARGET?cursor=page$index"
+            val next = if (index < pages.lastIndex) "page${index + 1}" else null
+            application.on(route, body = snapshot(items, next, total))
+        }
         user.on(
             "GET /internal/expos/$EVENT/standard-participants/details?size=500",
             body =
@@ -258,7 +312,7 @@ class ExcelDownloadTests {
         )
         val response = send(mapOf("template" to "STANDARD", "scope" to "FILTER"))
         response.status shouldBe 200
-        application.requests.size shouldBe 3
+        application.requests.size shouldBe pages.size
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { it.getSheetAt(0).lastRowNum shouldBe 1 }
     }
 
@@ -269,6 +323,11 @@ class ExcelDownloadTests {
             val response = send(selected("STANDARD", listOf(FIRST)))
             response.status shouldBe status
             response.contentAsString.contains("private-error") shouldBe false
+            application.on("POST $TARGET", status, "private-error")
+            send(mapOf("template" to "STANDARD", "scope" to "FILTER")).status shouldBe status
+            application.on("POST $TARGET", body = snapshot(listOf(target(FIRST)), "next"))
+            application.on("GET $TARGET?cursor=next", status, "private-error")
+            send(mapOf("template" to "STANDARD", "scope" to "FILTER")).status shouldBe status
         }
     }
 
