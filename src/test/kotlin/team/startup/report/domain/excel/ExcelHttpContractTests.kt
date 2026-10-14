@@ -90,7 +90,7 @@ class ExcelHttpContractTests {
         result.response.status shouldBe 200
         result.response.contentType shouldBe XLSX
         result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION)!! shouldMatch
-            Regex("attachment; filename=\"교원연수자_정보_\\d{8}_\\d{6}\\.xlsx\"")
+            Regex("attachment; filename\\*=UTF-8''%EA%B5%90%EC%9B%90%EC%97%B0%EC%88%98%EC%9E%90_%EC%A0%95%EB%B3%B4_\\d{8}_\\d{6}\\.xlsx")
         result.sheetName() shouldBe "사전 교원연수자 정보"
 
         listOf(null, emptyList<Trainee>()).forEach {
@@ -131,7 +131,8 @@ class ExcelHttpContractTests {
             )
         val result = admin("/excel/trainee/3")
         result.response.status shouldBe 200
-        result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Trainee_Attendance_홍길동.xlsx\""
+        result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe
+            "attachment; filename*=UTF-8''Trainee_Attendance_%ED%99%8D%EA%B8%B8%EB%8F%99.xlsx"
         result.sheetName() shouldBe "출석부"
         source.calls shouldBe listOf("attendance:3")
 

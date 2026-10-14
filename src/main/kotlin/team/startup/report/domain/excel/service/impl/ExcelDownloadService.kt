@@ -93,6 +93,7 @@ class ExcelDownloadService(
         expoId: UUID,
         request: DownloadRequest,
     ): List<ApplicationTarget> {
+        var expiresAt: Instant? = null
         val items =
             when (request.scope) {
                 DownloadScope.SELECTED -> {
@@ -112,7 +113,13 @@ class ExcelDownloadService(
                             supplied
                         }
                     val initial = application.createTargetSnapshot(expoId, filter)
-                    check(initial.totalElements in 0..10_000)
+                    check(initial.totalElements >= 0)
+                    if (initial.totalElements >
+                        10_000
+                    ) {
+                        throw ExpectedException(HttpStatus.PAYLOAD_TOO_LARGE, "전체 신청은 최대 10,000건까지 다운로드할 수 있습니다.")
+                    }
+                    expiresAt = initial.expiresAt
                     val all = mutableListOf<ApplicationTarget>()
                     val cursors = mutableSetOf<String>()
                     var page = initial
@@ -121,7 +128,7 @@ class ExcelDownloadService(
                             page.snapshotId == initial.snapshotId && page.snapshotAt == initial.snapshotAt &&
                                 page.expiresAt == initial.expiresAt,
                         )
-                        check(page.totalElements == initial.totalElements && page.items.size <= 500 && page.expiresAt > Instant.now())
+                        check(page.totalElements == initial.totalElements && page.items.size <= 500)
                         all += page.items
                         check(all.size <= initial.totalElements)
                         val next = page.nextCursor ?: break
@@ -148,6 +155,9 @@ class ExcelDownloadService(
                     .asString() == expoId.toString()
             },
         )
+        expiresAt?.let {
+            if (it <= Instant.now()) throw ExpectedException(HttpStatus.GONE, "다운로드 스냅샷이 만료되었습니다. 다시 요청해 주세요.")
+        }
         return items
     }
 
