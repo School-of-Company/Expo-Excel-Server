@@ -29,23 +29,30 @@ class ApplicationClient(
             .post()
             .uri(TARGET_PATH, expoId)
             .body(mapOf("filter" to filter, "limit" to 500))
-            .targetResponse()
+            .targetResponse(snapshotCreation = true)
 
     fun nextTargetSnapshot(
         expoId: UUID,
         cursor: String,
     ): ApplicationSnapshot = http.get().uri { it.path(TARGET_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse()
 
-    private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(): T =
+    private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(snapshotCreation: Boolean = false): T =
         try {
             retrieve().body(object : ParameterizedTypeReference<T>() {}) ?: error("Application 대상 응답 없음")
         } catch (e: RestClientResponseException) {
             val status =
                 when (e.statusCode.value()) {
                     400 -> HttpStatus.BAD_REQUEST
+
                     404 -> HttpStatus.NOT_FOUND
+
                     410 -> HttpStatus.GONE
+
                     413 -> HttpStatus.PAYLOAD_TOO_LARGE
+
+                    // Application 스냅샷 생성의 10,000건 상한은 422이며 Report 계약은 413이다.
+                    422 -> if (snapshotCreation) HttpStatus.PAYLOAD_TOO_LARGE else HttpStatus.BAD_GATEWAY
+
                     else -> HttpStatus.BAD_GATEWAY
                 }
             throw ExpectedException(status, "신청 대상 조회에 실패했습니다. 범위와 스냅샷 유효기간을 확인해 주세요.")

@@ -194,7 +194,7 @@ class ExcelSourceIntegrationTests {
 
         result.response.status shouldBe 200
         result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION)!! shouldMatch
-            Regex("attachment; filename=\"교원연수자_정보_\\d{8}_\\d{6}\\.xlsx\"")
+            Regex("attachment; filename\\*=UTF-8''%EA%B5%90%EC%9B%90%EC%97%B0%EC%88%98%EC%9E%90_%EC%A0%95%EB%B3%B4_\\d{8}_\\d{6}\\.xlsx")
         result.sheet("사전 교원연수자 정보").values() shouldBe
             listOf(
                 listOf("이름", "연수원아이디", "전화번호", "신청방식", "소속", "과목", "경력", "공통 강연", "선택 강연"),
@@ -265,7 +265,8 @@ class ExcelSourceIntegrationTests {
             val result = admin("/excel/trainee/3")
 
             result.response.status shouldBe 200
-            result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Trainee_Attendance_연수자3.xlsx\""
+            result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe
+                "attachment; filename*=UTF-8''Trainee_Attendance_%EC%97%B0%EC%88%98%EC%9E%903.xlsx"
             XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
                 workbook.numberOfSheets shouldBe 1
                 val sheet = workbook.getSheet("출석부")
@@ -361,7 +362,8 @@ class ExcelSourceIntegrationTests {
         val result = admin("/excel/trainee/3")
 
         result.response.status shouldBe 200
-        result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Trainee_Attendance_홍길동.xlsx\""
+        result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe
+            "attachment; filename*=UTF-8''Trainee_Attendance_%ED%99%8D%EA%B8%B8%EB%8F%99.xlsx"
         val sheet = result.sheet("출석부")
         val values = sheet.values()
         values[0] shouldBe listOf("출  석  부")
