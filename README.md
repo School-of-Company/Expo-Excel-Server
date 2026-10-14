@@ -44,7 +44,6 @@ Flyway를 사용하며 스키마 변경은 `src/main/resources/db/migration`에 
 아직 엔티티와 마이그레이션은 없습니다. JPA는 `ddl-auto: validate`로 실행합니다.
 운영 환경은 별도 DB·보안·서비스 디스커버리 설정이 필요합니다.
 dev·prod 배포 환경에도 `JWT_PUBLIC_KEY`를 넣어야 합니다(Config-Server `report-*.yml`에는 아직 없음).
-`/excel` 다운로드 계약과 인증·공급자 연동 조건은 [다운로드 문서](docs/excel-download.md)를 참고하세요.
 
 ```bash
 # CI와 같은 검증 (PostgreSQL이 실행 중이어야 함)
