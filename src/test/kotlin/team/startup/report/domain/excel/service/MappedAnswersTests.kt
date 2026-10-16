@@ -29,6 +29,27 @@ private val SURVEY_QUESTIONS =
         """,
     )
 
+// Form 신청 폼 스냅샷. 직업은 DROPDOWN(dynamicFormType OCCUPATION, 키 = Occupation), 지역은 REGION(jsonData 없음)이다.
+private val REGISTRATION_QUESTIONS =
+    json(
+        """
+        [
+          {"id": 1, "title": "이름", "order": 0, "formType": "SENTENCE", "dynamicFormType": "NAME"},
+          {"id": 2, "title": "전화번호", "order": 1, "formType": "SENTENCE", "dynamicFormType": "PHONE_NUMBER"},
+          {"id": 3, "title": "직업", "order": 2, "formType": "DROPDOWN", "dynamicFormType": "OCCUPATION",
+           "jsonData": {"GENERAL": "일반 성인", "TEACHER": "교사", "ELEMENTARY_STUDENT": "초등학생"}},
+          {"id": 4, "title": "지역", "order": 3, "formType": "REGION", "dynamicFormType": "DEFAULT"},
+          {"id": 5, "title": "소속 학교", "order": 4, "formType": "SENTENCE", "dynamicFormType": "SCHOOL"},
+          {"id": 6, "title": "관심 분야", "order": 5, "formType": "SENTENCE", "dynamicFormType": "DEFAULT"},
+          {"id": 7, "title": "동행자", "order": 6, "formType": "COMPANION", "dynamicFormType": "DEFAULT"}
+        ]
+        """,
+    )
+
+private const val REPRESENTATIVE_ANSWERS =
+    """{"이름": "대표", "전화번호": "010", "직업": "GENERAL", "지역": "GWANGJU", "관심 분야": "전시",
+    "동행자": [{"name": "가람", "occupation": "ELEMENTARY_STUDENT", "region": "JEONNAM"}, {"name": "나래"}]}"""
+
 class MappedAnswersTests :
     StringSpec({
         "설문: 제출 당시 스냅샷으로 ID를 제목에, 선택지 키를 보기 문구로 바꾸고 order 순서를 지킨다" {
@@ -124,6 +145,62 @@ class MappedAnswersTests :
                 rows(renderTrainees(listOf(Trainee("김교사", "T1", "010", ApplicationType.FIELD, info, emptyList()))))
             trainee[0] shouldContainExactly listOf("이름", "연수원아이디", "전화번호", "신청방식", "학교명", "과목", "공통 강연", "선택 강연")
             trainee[1] shouldContainExactly listOf("김교사", "T1", "010", "현장 등록", "가초", "국어, 수학", "", "")
+        }
+
+        "일반 참가자: 동행자는 대표자 스냅샷의 제목만 빌리고 값은 자기 직업·지역·학교뿐이다" {
+            val representative =
+                standardInformation(
+                    json(REPRESENTATIVE_ANSWERS),
+                    REGISTRATION_QUESTIONS,
+                    ParticipantProfile("GENERAL", "GWANGJU", null),
+                    companion = false,
+                )
+            val teacher =
+                standardInformation(json("{}"), REGISTRATION_QUESTIONS, ParticipantProfile("TEACHER", "JEONNAM", "가온초"), companion = true)
+            val student =
+                standardInformation(
+                    json("{}"),
+                    REGISTRATION_QUESTIONS,
+                    ParticipantProfile("HIGH_SCHOOL_STUDENT", "OTHER", null),
+                    companion = true,
+                )
+
+            // 이름·전화번호 문항은 고정 열과 겹쳐 빠지고, 대표자가 답하지 않은 학교 문항도 열이 남는다
+            representative.values shouldBe
+                mapOf("직업" to "일반 성인", "지역" to "광주", "소속 학교" to null, "관심 분야" to "전시", "동행자" to "가람, 나래")
+            teacher.values shouldBe mapOf("직업" to "교사", "지역" to "전남", "소속 학교" to "가온초", "관심 분야" to null, "동행자" to null)
+            // 폼 보기 문구가 없는 직업은 고정 문구를 쓴다
+            student.values shouldBe mapOf("직업" to "고등학생", "지역" to "그 외", "소속 학교" to null, "관심 분야" to null, "동행자" to null)
+            listOf(representative, teacher, student).sumOf { it.unresolved } shouldBe 0
+        }
+
+        "일반 참가자: 자기 답변이 컬럼보다 우선하고, 모르는 코드는 저장값 그대로 두고 센다" {
+            val mapped =
+                standardInformation(
+                    json("""{"직업": "TEACHER", "지역": "SEOUL"}"""),
+                    REGISTRATION_QUESTIONS,
+                    ParticipantProfile("GENERAL", "GWANGJU", null),
+                    companion = false,
+                )
+
+            mapped.values["직업"] shouldBe "교사"
+            mapped.values["지역"] shouldBe "SEOUL"
+            mapped.unresolved shouldBe 1
+        }
+
+        "일반 참가자: 대표자 스냅샷이 없는 동행자는 열을 만들지 않고 복원 불가로 센다" {
+            val mapped = standardInformation(json("{}"), null, ParticipantProfile("TEACHER", "JEONNAM", "가온초"), companion = true)
+
+            mapped.values shouldBe emptyMap()
+            mapped.unresolved shouldBe 3
+        }
+
+        "연수자·출석부의 등록 답변은 기존 표시 그대로다(지역 코드·동행자 JSON을 바꾸지 않는다)" {
+            val mapped = informationAnswers(json(REPRESENTATIVE_ANSWERS), REGISTRATION_QUESTIONS)
+
+            mapped.values["지역"] shouldBe "GWANGJU"
+            mapped.values["이름"] shouldBe "대표"
+            mapped.values["동행자"] shouldBe """{"name":"가람","occupation":"ELEMENTARY_STUDENT","region":"JEONNAM"}, {"name":"나래"}"""
         }
     })
 

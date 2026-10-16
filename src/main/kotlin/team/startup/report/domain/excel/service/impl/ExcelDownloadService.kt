@@ -209,11 +209,14 @@ class ExcelDownloadService(
         val byTrainee = rows.groupBy { it.traineeId }
         return when (request.template) {
             ExcelTemplate.STANDARD -> {
-                val people = readAll { user.standardParticipantPage(expoId, it) }.filter { it.participantId in ids }
+                // 대표자를 고르지 않아도 동행자의 열 제목을 찾을 수 있게 거르기 전 전체로 찾는다. 출력 대상은 고른 참가자뿐이다.
+                val all = readAll { user.standardParticipantPage(expoId, it) }
+                val byId = all.associateBy { it.participantId }
+                val people = all.filter { it.participantId in ids }
                 check(people.map { it.participantId }.toSet() == ids && people.size == ids.size)
                 val result =
                     people.sortedBy { it.participantId }.map {
-                        val registration = informationAnswers(it.information.answers, it.information.questions).values
+                        val registration = it.registration(byId).values
                         StandardParticipant(
                             it.name,
                             it.phoneNumber,
