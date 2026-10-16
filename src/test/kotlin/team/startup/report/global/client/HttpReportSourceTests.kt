@@ -264,6 +264,8 @@ private fun standard(
     "applicationType" to "FIELD",
     "information" to information(mapOf("학교" to "광주")),
     "surveyAnswer" to if (survey) information(mapOf("1" to "답")) else null,
+    "region" to null,
+    "school" to null,
 )
 
 private fun trainee(id: Long) =

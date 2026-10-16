@@ -83,6 +83,12 @@ data class StandardParticipantDetail(
     val information: InformationResDto,
     // 설문에 답하지 않았으면 null
     val surveyAnswer: InformationResDto?,
+    // 참가자 자기 컬럼. 동행자는 신청 답변 없이 이 값들만 갖고, 대표자 ID로 대표자의 문항 스냅샷을 찾는다
+    val occupation: String? = null,
+    val representativeId: Long? = null,
+    // User #147. 키가 없으면(구버전 응답) null, 값이 없으면 NullNode다. 구버전 응답으로는 엑셀을 만들지 않는다
+    val region: JsonNode? = null,
+    val school: JsonNode? = null,
 )
 
 /** 개인 phoneNumber와 trainingId는 새 연결 연수자에서 null일 수 있다(User #82). 문자 수신 번호는 기존 전화번호 열에 쓰지 않는다. */

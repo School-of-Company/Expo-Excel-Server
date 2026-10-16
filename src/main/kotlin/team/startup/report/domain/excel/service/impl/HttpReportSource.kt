@@ -3,6 +3,7 @@ package team.startup.report.domain.excel.service.impl
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import team.startup.report.domain.excel.service.MappedAnswers
+import team.startup.report.domain.excel.service.ParticipantProfile
 import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.StandardParticipant
@@ -10,14 +11,17 @@ import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
 import team.startup.report.domain.excel.service.TrainingProgram
 import team.startup.report.domain.excel.service.informationAnswers
+import team.startup.report.domain.excel.service.standardInformation
 import team.startup.report.domain.excel.service.surveyAnswers
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.DetailPage
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.InformationResDto
+import team.startup.report.global.client.StandardParticipantDetail
 import team.startup.report.global.client.TrainingApplication
 import team.startup.report.global.client.UserClient
 import team.startup.report.global.security.ExcelAccessInterceptor
+import tools.jackson.databind.JsonNode
 
 /**
  * 공급자 내부 API를 조합한 원천 조회. 행사·프로그램·연수자가 없으면 null(v1 대상별 오류), 공급자 장애는 예외(엔드포인트별 v1 500 감싸기)다.
@@ -34,7 +38,9 @@ class HttpReportSource(
     override fun standardParticipants(expoId: String): List<StandardParticipant>? {
         expo.expo(expoId) ?: return null
         val unresolved = Unresolved()
-        return readAll { user.standardParticipantPage(expoId, it) }
+        val all = readAll { user.standardParticipantPage(expoId, it) }
+        val byId = all.associateBy { it.participantId }
+        return all
             .sortedBy { it.participantId }
             .map {
                 StandardParticipant(
@@ -42,7 +48,7 @@ class HttpReportSource(
                     phoneNumber = it.phoneNumber,
                     personalInformationStatus = it.personalInformationStatus,
                     applicationType = it.applicationType,
-                    information = unresolved.add(it.information.toAnswers()),
+                    information = unresolved.add(it.registration(byId)),
                     surveyAnswer =
                         it.surveyAnswer?.let { survey -> unresolved.add(surveyAnswers(survey.answers, survey.questions)) } ?: emptyMap(),
                 )
@@ -175,4 +181,25 @@ class HttpReportSource(
             if (count > 0) log.warn("엑셀 답변 복원 불가: excel={}, expoId={}, count={}", excel, expoId, count)
         }
     }
+}
+
+/**
+ * 일반 참가자 신청 폼 열(GET·SELECTED·FILTER 공통). 값은 이 참가자의 답변과 자기 컬럼에서만 가져온다.
+ * 동행자는 [all](행사 전체 상세)에서 찾은 대표자의 문항 스냅샷을 제목으로만 쓰고, 대표자 답변은 쓰지 않는다.
+ * 대표자가 없거나 region·school 키가 없는 응답(User #147 이전)은 빈칸으로 숨기지 않고 실패한다.
+ */
+internal fun StandardParticipantDetail.registration(all: Map<Long, StandardParticipantDetail>): MappedAnswers {
+    val representative = representativeId?.let { all[it] ?: error("${UserClient.NAME} 서비스 대표자 누락") }
+    return standardInformation(
+        information.answers,
+        // 동행자 스냅샷은 JSON null(NullNode)로 온다
+        information.questions?.takeUnless { it.isNull } ?: representative?.information?.questions,
+        ParticipantProfile(occupation, region.requiredText(), school.requiredText()),
+        companion = representative != null,
+    )
+}
+
+private fun JsonNode?.requiredText(): String? {
+    check(this != null && (isNull || isString)) { "${UserClient.NAME} 서비스 응답 형식 오류" }
+    return if (isNull) null else stringValue()
 }

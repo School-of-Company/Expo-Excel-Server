@@ -259,6 +259,8 @@ class ExcelAccessTests {
                 "phoneNumber" to null,
                 "personalInformationStatus" to true,
                 "applicationType" to "PRE",
+                "region" to null,
+                "school" to null,
                 "information" to mapOf("answers" to emptyMap<String, Any>()),
                 "surveyAnswer" to null,
             )
