@@ -145,6 +145,31 @@ class ExcelSourceIntegrationTests {
     }
 
     @Test
+    fun `일반 참가자 - 대표자와 동행자 4명은 각자 직업 지역 학교를 자기 행에 쓰고 대표자 답변을 복사하지 않는다`(output: CapturedOutput) {
+        expo.on(EXPO, body = expoBody())
+        user.on(STANDARD_PAGE, body = page(party(), null))
+
+        val result = admin("/excel/standard/e1")
+
+        result.response.status shouldBe 200
+        result.sheet("박람회 참가자 정보").values() shouldBe PARTY_ROWS
+        output.out shouldNotContain "엑셀 답변 복원 불가"
+    }
+
+    @Test
+    fun `일반 참가자 - 지역 학교 키가 없는 구버전 응답과 대표자 누락은 빈칸 파일 대신 실패한다`() {
+        expo.on(EXPO, body = expoBody())
+        user.on(STANDARD_PAGE, body = page(party().map { it - "region" }, null))
+        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
+
+        user.on(STANDARD_PAGE, body = page(party().map { it - "school" }, null))
+        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
+
+        user.on(STANDARD_PAGE, body = page(party().drop(1), null))
+        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 대표자 누락")
+    }
+
+    @Test
     fun `연수자 - 신청 순서 강연, 중복 제목, 스냅샷 선택지`() {
         expo.on(EXPO, body = expoBody())
         user.on(
@@ -758,6 +783,8 @@ private fun standard(
     "applicationType" to applicationType,
     "information" to information,
     "surveyAnswer" to surveyAnswer,
+    "region" to null,
+    "school" to null,
 )
 
 /** 신청 폼은 MULTIPLE 키 배열, 설문은 문항 ID 키(DROPDOWN 키, CHECKBOX boolean) */
@@ -819,3 +846,99 @@ private fun brief(
     id: Long,
     agreed: Boolean,
 ) = mapOf("participantId" to id, "name" to "참가자$id", "phoneNumber" to "010-$id", "personalInformationStatus" to agreed)
+
+/** QA 형태의 일행(Report #50): 대표자 일반인과 지역·직업이 서로 다른 동행자 4명. 교사만 학교가 있고 동행자는 번호가 없다. */
+internal fun party(): List<Map<String, Any?>> {
+    val questions =
+        listOf(
+            mapOf("id" to "1", "title" to "이름", "order" to 0, "formType" to "SENTENCE", "dynamicFormType" to "NAME"),
+            mapOf("id" to "2", "title" to "전화번호", "order" to 1, "formType" to "SENTENCE", "dynamicFormType" to "PHONE_NUMBER"),
+            mapOf(
+                "id" to "3",
+                "title" to "직업",
+                "order" to 2,
+                "formType" to "DROPDOWN",
+                "dynamicFormType" to "OCCUPATION",
+                "jsonData" to
+                    mapOf(
+                        "GENERAL" to "일반인",
+                        "ELEMENTARY_STUDENT" to "초등학생",
+                        "MIDDLE_SCHOOL_STUDENT" to "중학생",
+                        "HIGH_SCHOOL_STUDENT" to "고등학생",
+                        "TEACHER" to "교사",
+                    ),
+            ),
+            mapOf("id" to "4", "title" to "지역", "order" to 3, "formType" to "REGION", "dynamicFormType" to "DEFAULT"),
+            mapOf("id" to "5", "title" to "소속 학교", "order" to 4, "formType" to "SENTENCE", "dynamicFormType" to "SCHOOL"),
+            mapOf("id" to "6", "title" to "관심 분야", "order" to 5, "formType" to "SENTENCE", "dynamicFormType" to "DEFAULT"),
+            mapOf("id" to "7", "title" to "동행자", "order" to 6, "formType" to "COMPANION", "dynamicFormType" to "DEFAULT"),
+        )
+    val companions =
+        listOf(
+            Triple("동행초", "ELEMENTARY_STUDENT", "JEONNAM"),
+            Triple("동행중", "MIDDLE_SCHOOL_STUDENT", "OTHER"),
+            Triple("동행고", "HIGH_SCHOOL_STUDENT", "GWANGJU"),
+            Triple("동행교", "TEACHER", "JEONNAM"),
+        )
+    val representative =
+        partyMember(1, "대표", "010-0000-0001", null, "GENERAL", "GWANGJU", null) +
+            (
+                "information" to
+                    mapOf(
+                        "answers" to
+                            mapOf(
+                                "이름" to "대표",
+                                "전화번호" to "010-0000-0001",
+                                "직업" to "GENERAL",
+                                "지역" to "GWANGJU",
+                                "관심 분야" to "전시",
+                                "동행자" to
+                                    companions.map { (name, occupation, region) ->
+                                        mapOf("name" to name, "occupation" to occupation, "region" to region) +
+                                            (if (occupation == "TEACHER") mapOf("school" to "가온초") else emptyMap())
+                                    },
+                            ),
+                        "questions" to questions,
+                    )
+            )
+    // 동행자는 User에 신청 답변·스냅샷 없이 저장된다
+    return listOf(representative) +
+        companions.mapIndexed { index, (name, occupation, region) ->
+            partyMember(index + 2L, name, null, 1, occupation, region, if (occupation == "TEACHER") "가온초" else null)
+        }
+}
+
+private fun partyMember(
+    id: Long,
+    name: String,
+    phoneNumber: String?,
+    representativeId: Long?,
+    occupation: String,
+    region: String,
+    school: String?,
+) = mapOf(
+    "participantId" to id,
+    "name" to name,
+    "phoneNumber" to phoneNumber,
+    // 대표 수신 번호. Report는 개인 번호 열에 쓰지 않는다
+    "notificationPhoneNumber" to "010-0000-0001",
+    "personalInformationStatus" to true,
+    "applicationType" to "PRE",
+    "occupation" to occupation,
+    "representativeId" to representativeId,
+    "region" to region,
+    "school" to school,
+    "information" to mapOf("answers" to emptyMap<String, Any>(), "questions" to null),
+    "surveyAnswer" to null,
+)
+
+/** [party]의 기대 XLSX. 이름·전화번호 폼 열은 고정 열과 겹쳐 빠지고, 동행자 개인 번호는 빈칸이다. */
+internal val PARTY_ROWS =
+    listOf(
+        listOf("이름", "전화번호", "개인정보 동의 여부", "신청 방식", "직업", "지역", "소속 학교", "관심 분야", "동행자"),
+        listOf("대표", "010-0000-0001", "동의", "사전 등록", "일반인", "광주", "", "전시", "동행초, 동행중, 동행고, 동행교"),
+        listOf("동행초", null, "동의", "사전 등록", "초등학생", "전남", "", "", ""),
+        listOf("동행중", null, "동의", "사전 등록", "중학생", "그 외", "", "", ""),
+        listOf("동행고", null, "동의", "사전 등록", "고등학생", "광주", "", "", ""),
+        listOf("동행교", null, "동의", "사전 등록", "교사", "전남", "가온초", "", ""),
+    )

@@ -34,6 +34,72 @@ fun informationAnswers(
     return MappedAnswers(keys.associateWith { counter.display(answers.get(it), byTitle[it]) }, counter.count)
 }
 
+/** 일반 참가자 자기 컬럼(User #147). 동행자는 신청 답변 없이 이 값만 저장된다. 값은 enum 이름(직업·지역)이나 문자열(학교)이다. */
+data class ParticipantProfile(
+    val occupation: String?,
+    val region: String?,
+    val school: String?,
+)
+
+/**
+ * 일반 참가자 신청 폼 답변(Report #50). [questions]는 자기 스냅샷이고, 동행자([companion])는 대표자 스냅샷에서 제목만 빌린다.
+ * - 직업(dynamicFormType OCCUPATION)·지역(formType REGION)·학교(dynamicFormType SCHOOL) 문항은 자기 답변, 없으면 자기 [profile] 값이다.
+ *   그 밖의 문항은 자기 답변만 쓰고 대표자 답변은 가져오지 않는다.
+ * - 스냅샷 문항은 답이 없어도 제목을 남기고 null(빈칸)로 둔다. 머리글은 첫 참가자(대표자) 키로 만들어지므로,
+ *   대표자가 답하지 않은 학교 문항도 열이 있어야 교사 동행자의 학교가 나온다.
+ * - 이름·전화번호(dynamicFormType NAME·PHONE_NUMBER) 문항은 고정 열과 겹치므로 열에서 뺀다.
+ */
+fun standardInformation(
+    answers: JsonNode,
+    questions: JsonNode?,
+    profile: ParticipantProfile,
+    companion: Boolean,
+): MappedAnswers {
+    if (!answers.isObject) return MappedAnswers(emptyMap(), 1)
+    val snapshot = snapshotOf(questions).orEmpty()
+    val identities = snapshot.filter { it.dynamicFormType in IDENTITY_TYPES }.mapNotNullTo(HashSet()) { it.title }
+    val byTitle = LinkedHashMap<String, Question>()
+    snapshot.forEach { q -> q.title?.let { byTitle.putIfAbsent(it, q) } }
+
+    val counter = Counter(standard = true)
+    val values = LinkedHashMap<String, String?>()
+    byTitle.forEach { (title, q) ->
+        if (title in identities) return@forEach
+        val own = q.profileValue(profile)
+        when {
+            answers.has(title) -> values[title] = counter.display(answers.get(title), q)
+            own != null -> values[title] = if (q.isSchool) own else counter.code(own, q)
+            else -> values[title] = null
+        }
+    }
+    answers.propertyNames().filterNot { it in byTitle }.forEach { values[it] = counter.display(answers.get(it), null) }
+    // 스냅샷에 해당 문항이 없으면 놓을 열을 알 수 없다. 열을 만들지 않고 복원 불가로 센다.
+    if (companion) {
+        counter.count +=
+            listOf(profile.occupation, profile.region, profile.school)
+                .zip(listOf(Question::isOccupation, Question::isRegion, Question::isSchool))
+                .count { (value, kind) -> value != null && byTitle.values.none(kind) }
+    }
+    return MappedAnswers(values, counter.count)
+}
+
+private val IDENTITY_TYPES = setOf("NAME", "PHONE_NUMBER")
+
+// Form occupation.enum.ts·region.enum.ts 주석의 문구. 직업은 폼 jsonData 문구가 우선이고 없을 때만 쓴다.
+private val OCCUPATION_LABELS =
+    mapOf(
+        "KINDERGARTEN_STUDENT" to "유치원생",
+        "ELEMENTARY_STUDENT" to "초등학생",
+        "MIDDLE_SCHOOL_STUDENT" to "중학생",
+        "HIGH_SCHOOL_STUDENT" to "고등학생",
+        "SCHOOL_STAFF" to "교직원",
+        "PARENT" to "학부모",
+        "GENERAL" to "일반인",
+        "TEACHER" to "교사",
+        "PRE_SERVICE_TEACHER" to "예비교사",
+    )
+private val REGION_LABELS = mapOf("GWANGJU" to "광주", "JEONNAM" to "전남", "OTHER" to "그 외")
+
 /** 설문 답변(문항 ID 키)을 제출 당시 제목으로 바꾼다. */
 fun surveyAnswers(
     answers: JsonNode,
@@ -62,7 +128,20 @@ private class Question(
     val title: String?,
     val formType: String?,
     val jsonData: JsonNode?,
-)
+    val dynamicFormType: String? = null,
+) {
+    val isOccupation get() = dynamicFormType == "OCCUPATION"
+    val isRegion get() = formType == "REGION"
+    val isSchool get() = dynamicFormType == "SCHOOL"
+
+    fun profileValue(profile: ParticipantProfile): String? =
+        when {
+            isOccupation -> profile.occupation
+            isRegion -> profile.region
+            isSchool -> profile.school
+            else -> null
+        }
+}
 
 /** order 순 문항. 스냅샷이 없거나 배열이 아니면 null. */
 private fun snapshotOf(questions: JsonNode?): List<Question>? {
@@ -78,11 +157,15 @@ private fun snapshotOf(questions: JsonNode?): List<Question>? {
                 title = q.get("title")?.takeIf { it.isString }?.stringValue(),
                 formType = q.get("formType")?.takeIf { it.isString }?.stringValue(),
                 jsonData = q.get("jsonData")?.takeIf { it.isObject },
+                dynamicFormType = q.get("dynamicFormType")?.takeIf { it.isString }?.stringValue(),
             )
         }
 }
 
-private class Counter {
+/** [standard]면 일반 참가자 표시 규칙(직업·지역 문구, 동행자 이름)을 쓴다. 연수자·출석부는 기존 표시 그대로다. */
+private class Counter(
+    private val standard: Boolean = false,
+) {
     var count = 0
 
     fun display(
@@ -90,6 +173,10 @@ private class Counter {
         question: Question?,
     ): String? {
         if (value == null || value.isNull) return null
+        if (standard && question?.formType == "COMPANION" && value.isArray) return companionNames(value)
+        if (standard && (question?.isRegion == true || question?.isOccupation == true) && value.isString) {
+            return code(value.stringValue(), question)
+        }
         val choices = question?.jsonData?.takeIf { question.formType == "DROPDOWN" || question.formType == "MULTIPLE" }
         if (choices == null) return plain(value)
 
@@ -101,6 +188,26 @@ private class Counter {
         if (unknown) count++
         return labels.joinToString(", ")
     }
+
+    /** 직업·지역 코드의 표시 문구. 직업은 폼 보기 문구가 우선이다. 모르는 코드는 저장값 그대로 쓰고 센다. */
+    fun code(
+        value: String,
+        question: Question,
+    ): String {
+        val label =
+            if (question.isRegion) {
+                REGION_LABELS[value]
+            } else {
+                question.jsonData?.get(value)?.let(::choiceText) ?: OCCUPATION_LABELS[value]
+            }
+        return label ?: value.also { count++ }
+    }
+
+    // 대표자 행의 동행자 문항은 이름만 잇는다. 동행자의 직업·지역·학교는 각자 행에 있다.
+    private fun companionNames(value: JsonNode): String =
+        value.values().joinToString(", ") { companion ->
+            companion.get("name")?.takeIf { it.isString }?.stringValue() ?: "".also { count++ }
+        }
 
     /** 키면 보기 문구, 이미 보기 문구면 그대로, 둘 다 아니면 null */
     private fun labelOf(

@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
+import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
@@ -26,6 +27,7 @@ import team.startup.report.global.client.StubProvider
 import team.startup.report.global.client.UserClient
 import team.startup.report.global.security.ExcelSecurityConfig
 import team.startup.report.support.TestJwt
+import team.startup.report.support.values
 import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.util.UUID
@@ -347,6 +349,24 @@ class ExcelDownloadTests {
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { it.getSheetAt(0).lastRowNum shouldBe 1 }
     }
 
+    @Test
+    fun `일반 명단 필터와 선택은 GET과 같은 자기 값을 쓰고 고른 사람만 ID 순으로 한 번씩 출력한다`() {
+        val party = "GET /internal/expos/$EVENT/standard-participants/details?size=500"
+        user.on(party, body = mapOf("items" to party(), "nextCursor" to null))
+
+        application.on("POST $TARGET", body = snapshot((1L..5L).map { target(UUID(0, it), participant = it) }, null, total = 5))
+        sheet(send(mapOf("template" to "STANDARD", "scope" to "FILTER"))) shouldBe PARTY_ROWS
+
+        // 동행자만 고르면 대표자는 열 제목에만 쓰이고 행으로 나오지 않는다. 같은 사람의 신청 두 건은 한 행이다.
+        select(listOf(target(FIRST, participant = 5), target(SECOND, participant = 3), target(UUID(0, 9), participant = 5)))
+        sheet(send(selected("STANDARD", listOf(FIRST, SECOND, UUID(0, 9))))) shouldBe listOf(PARTY_ROWS[0], PARTY_ROWS[3], PARTY_ROWS[5])
+    }
+
+    private fun sheet(response: MockHttpServletResponse): List<List<String?>> {
+        response.status shouldBe 200
+        return XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { it.getSheetAt(0).values() }
+    }
+
     private fun send(
         body: Any,
         token: String? = TestJwt.token("ROLE_ADMIN"),
@@ -433,6 +453,8 @@ class ExcelDownloadTests {
             "applicationType" to "PRE",
             "information" to mapOf("answers" to mapOf("학교명" to null)),
             "surveyAnswer" to null,
+            "region" to null,
+            "school" to null,
         )
 
     private fun trainee() =
