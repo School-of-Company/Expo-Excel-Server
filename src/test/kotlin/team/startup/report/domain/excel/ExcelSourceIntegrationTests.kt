@@ -134,14 +134,14 @@ class ExcelSourceIntegrationTests {
     }
 
     @Test
-    fun `일반 참가자 - 행사 없음과 빈 행사는 v1 메시지`() {
+    fun `일반 참가자 - 행사 없음과 빈 행사는 404`() {
         expo.on(EXPO, 404, """{"status":404,"message":"박람회를 찾을 수 없습니다."}""")
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: null")
+        admin("/excel/standard/e1").assertError(404, "박람회를 찾을 수 없습니다.")
         user.requests shouldBe emptyList()
 
         expo.on(EXPO, body = expoBody())
         user.on(STANDARD_PAGE, body = page(emptyList(), null))
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: 참가자 정보가 존재하지 않습니다.")
+        admin("/excel/standard/e1").assertError(404, "참가자 정보가 존재하지 않습니다.")
     }
 
     @Test
@@ -307,13 +307,13 @@ class ExcelSourceIntegrationTests {
     }
 
     @Test
-    fun `연수자 - 행사 없음과 연수자 없음은 v1 메시지`() {
+    fun `연수자 - 행사 없음과 연수자 없음은 404`() {
         expo.on(EXPO, 404, """{"status":404}""")
-        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
+        admin("/excel/e1").assertError(404, "박람회를 찾을 수 없습니다.")
 
         expo.on(EXPO, body = expoBody())
         user.on(TRAINEE_PAGE, body = page(emptyList(), null))
-        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
+        admin("/excel/e1").assertError(404, "연수자가 존재하지 않습니다.")
         application.requests shouldBe emptyList()
     }
 
@@ -348,7 +348,7 @@ class ExcelSourceIntegrationTests {
 
         expo.on(STANDARD_PROGRAM, 404, """{"status":404}""")
         application.requests.clear()
-        admin("/excel/program/e1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
+        admin("/excel/program/e1?programId=7").assertError(404, "프로그램을 찾을 수 없습니다.")
         application.requests shouldBe emptyList()
     }
 
@@ -405,9 +405,9 @@ class ExcelSourceIntegrationTests {
     }
 
     @Test
-    fun `출석부 - 없는 연수자와 신청 없음은 v1 메시지`() {
+    fun `출석부 - 없는 연수자와 신청 없음은 404`() {
         user.on(TRAINEE_DETAIL, 404, """{"status":404}""")
-        admin("/excel/trainee/3").assertError(500, "해당 연수자를 찾을 수 없습니다.")
+        admin("/excel/trainee/3").assertError(404, "해당 연수자를 찾을 수 없습니다.")
 
         user.on(
             TRAINEE_DETAIL,
@@ -422,7 +422,7 @@ class ExcelSourceIntegrationTests {
         )
         expo.on(EXPO, body = expoBody())
         application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
-        admin("/excel/trainee/3").assertError(500, "해당 연수자가 신청한 프로그램이 없습니다.")
+        admin("/excel/trainee/3").assertError(404, "해당 연수자가 신청한 프로그램이 없습니다.")
         expo.requests.filterNot { it.uri.endsWith("/admin-access") }.map { it.method } shouldBe listOf("GET")
     }
 

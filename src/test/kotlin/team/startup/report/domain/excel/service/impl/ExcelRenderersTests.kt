@@ -123,6 +123,11 @@ class ExcelRenderersTests :
             sheet.values()[1].takeLast(2) shouldBe listOf("x\ry", "x\ty")
         }
 
+        "일반 참가자: 0명은 머리글만 출력한다" {
+            read(renderStandardParticipants(emptyList())).getSheet("박람회 참가자 정보").values() shouldBe
+                listOf(listOf("이름", "전화번호", "개인정보 동의 여부", "신청 방식"))
+        }
+
         "연수자: v1 열·safe 정리·공통/선택 강연" {
             val sheet =
                 read(
