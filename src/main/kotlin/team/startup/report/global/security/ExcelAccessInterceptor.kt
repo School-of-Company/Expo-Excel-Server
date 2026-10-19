@@ -13,6 +13,7 @@ import org.springframework.web.servlet.HandlerInterceptor
 import org.springframework.web.servlet.HandlerMapping
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
+import team.startup.report.domain.excel.presentation.EntryRecordExcelController
 import team.startup.report.domain.excel.presentation.ExcelController
 import team.startup.report.domain.excel.presentation.ExcelDownloadController
 import team.startup.report.global.client.ExpoClient
@@ -42,7 +43,8 @@ class ExcelAccessInterceptor(
         if (handler !is HandlerMethod ||
             (
                 !ExcelController::class.java.isAssignableFrom(handler.beanType) &&
-                    !ExcelDownloadController::class.java.isAssignableFrom(handler.beanType)
+                    !ExcelDownloadController::class.java.isAssignableFrom(handler.beanType) &&
+                    !EntryRecordExcelController::class.java.isAssignableFrom(handler.beanType)
             )
         ) {
             return true

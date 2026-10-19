@@ -75,6 +75,7 @@ class ExcelSecurityConfig(
                         "/excel/standard/{expo_id}",
                         "/excel/program/{expo_id}",
                         "/excel/trainee/{trainee_id}",
+                        "/excel/entry-records/{expo_id}",
                     ).hasAuthority(ADMIN_AUTHORITY)
                     .anyRequest()
                     .denyAll()
