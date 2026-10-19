@@ -334,7 +334,7 @@ fun renderTraineeAttendance(
     return workbook
 }
 
-private fun newWorkbook(rowAccessWindowSize: Int) = SXSSFWorkbook(rowAccessWindowSize).apply { setCompressTempFiles(true) }
+internal fun newWorkbook(rowAccessWindowSize: Int) = SXSSFWorkbook(rowAccessWindowSize).apply { setCompressTempFiles(true) }
 
 private fun rgb(
     red: Int,
@@ -342,7 +342,7 @@ private fun rgb(
     blue: Int,
 ) = XSSFColor(byteArrayOf(red.toByte(), green.toByte(), blue.toByte()), null)
 
-private fun darkHeaderStyle(workbook: SXSSFWorkbook): XSSFCellStyle {
+internal fun darkHeaderStyle(workbook: SXSSFWorkbook): XSSFCellStyle {
     val font =
         (workbook.createFont() as XSSFFont).apply {
             bold = true
@@ -356,7 +356,7 @@ private fun darkHeaderStyle(workbook: SXSSFWorkbook): XSSFCellStyle {
     }
 }
 
-private fun CellStyle.thinBorders() = borders(BorderStyle.THIN)
+internal fun CellStyle.thinBorders() = borders(BorderStyle.THIN)
 
 private fun CellStyle.borders(style: BorderStyle) {
     borderTop = style
@@ -366,7 +366,7 @@ private fun CellStyle.borders(style: BorderStyle) {
 }
 
 /** null이면 POI가 빈 셀(BLANK)로 만든다. v1 setCellValue(null)과 같다. */
-private fun Sheet.writeRow(
+internal fun Sheet.writeRow(
     rowIndex: Int,
     values: List<String?>,
     style: CellStyle,
@@ -399,7 +399,7 @@ private fun timeRange(program: TrainingProgram) =
     "(${program.startDateTime.format(TIME_FORMATTER)}~${program.endDateTime.format(TIME_FORMATTER)})"
 
 /** v1 TraineeInfoToExcelServiceImpl.safe */
-private fun safe(value: String?): String =
+internal fun safe(value: String?): String =
     (value ?: "")
         .replace("\r", "")
         .replace("\n", "")
