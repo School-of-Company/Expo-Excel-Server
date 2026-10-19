@@ -15,7 +15,7 @@ class ProgramParticipantInfoToExcelServiceImpl(
         programId: Long,
     ): ExcelFile =
         wrapExcelFailure({ "엑셀 파일 생성 중 오류 발생" }) {
-            val participants = source.programParticipants(expoId, programId) ?: error("프로그램 없음")
+            val participants = source.programParticipants(expoId, programId) ?: throw excelNotFound("프로그램을 찾을 수 없습니다.")
             ExcelFile("attachment; filename=\"Program_Participant_Information.xlsx\"", renderProgramParticipants(participants))
         }
 }

@@ -66,7 +66,7 @@ class ExcelAccessInterceptor(
                     user.trainee(id)?.also { check(it.traineeId == id && it.expoId.isNotBlank()) }
                 } catch (_: Exception) {
                     throw ExpectedException(HttpStatus.BAD_GATEWAY, "연수자의 행사 정보를 확인할 수 없습니다.")
-                } ?: throw ExpectedException(HttpStatus.INTERNAL_SERVER_ERROR, "해당 연수자를 찾을 수 없습니다.")
+                } ?: throw ExpectedException(HttpStatus.NOT_FOUND, "해당 연수자를 찾을 수 없습니다.")
                 trainee.expoId
             }
         expo.requireAdminAccess(expoId, adminId, "Bearer ${auth.token.tokenValue}")

@@ -39,7 +39,12 @@ fun renderStandardParticipants(participants: List<StandardParticipant>): SXSSFWo
 
     val answers = participants.map { it.information.oneLine() to it.surveyAnswer.oneLine() }
     // v1: 신청 폼 열은 첫 참가자의 키만, 설문 열은 전체 참가자 키의 합집합
-    val infoKeys = answers.first().first.keys
+    val infoKeys =
+        answers
+            .firstOrNull()
+            ?.first
+            ?.keys
+            .orEmpty()
     val surveyKeys = answers.flatMapTo(LinkedHashSet()) { it.second.keys }
 
     sheet.writeRow(0, listOf("이름", "전화번호", "개인정보 동의 여부", "신청 방식") + infoKeys + surveyKeys, headerStyle)
