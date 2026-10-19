@@ -76,11 +76,11 @@ class ExcelHttpContractTests {
     }
 
     @Test
-    fun `일반 참가자 실패 - v1 메시지`() {
+    fun `일반 참가자 대상 없음은 404`() {
         source.standard = null
-        admin("/excel/standard/x").assertError(500, "엑셀 파일 생성 중 오류 발생: null")
+        admin("/excel/standard/x").assertError(404, "박람회를 찾을 수 없습니다.")
         source.standard = emptyList()
-        admin("/excel/standard/x").assertError(500, "엑셀 파일 생성 중 오류 발생: 참가자 정보가 존재하지 않습니다.")
+        admin("/excel/standard/x").assertError(404, "참가자 정보가 존재하지 않습니다.")
     }
 
     @Test
@@ -93,14 +93,14 @@ class ExcelHttpContractTests {
             Regex("attachment; filename\\*=UTF-8''%EA%B5%90%EC%9B%90%EC%97%B0%EC%88%98%EC%9E%90_%EC%A0%95%EB%B3%B4_\\d{8}_\\d{6}\\.xlsx")
         result.sheetName() shouldBe "사전 교원연수자 정보"
 
-        listOf(null, emptyList<Trainee>()).forEach {
-            source.trainees = it
-            admin("/excel/expo-1").assertError(500, "예상치 못한 오류 발생")
-        }
+        source.trainees = null
+        admin("/excel/expo-1").assertError(404, "박람회를 찾을 수 없습니다.")
+        source.trainees = emptyList()
+        admin("/excel/expo-1").assertError(404, "연수자가 존재하지 않습니다.")
     }
 
     @Test
-    fun `프로그램 참가자 - 0명도 성공, 소속 아님은 v1 메시지`() {
+    fun `프로그램 참가자 - 0명도 성공, 소속 아님은 404`() {
         source.program = emptyList()
         val result = admin("/excel/program/expo-1?programId=7")
         result.response.status shouldBe 200
@@ -109,13 +109,13 @@ class ExcelHttpContractTests {
         source.calls shouldBe listOf("program:expo-1:7")
 
         source.program = null
-        admin("/excel/program/expo-1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
+        admin("/excel/program/expo-1?programId=7").assertError(404, "프로그램을 찾을 수 없습니다.")
     }
 
     @Test
-    fun `프로그램 참가자 - 파라미터 누락은 400, 숫자 아님은 500`() {
+    fun `프로그램 참가자 - 파라미터 누락과 숫자 아님은 400`() {
         admin("/excel/program/expo-1").response.status shouldBe 400
-        admin("/excel/program/expo-1?programId=abc").response.status shouldBe 500
+        admin("/excel/program/expo-1?programId=abc").assertError(400, "잘못된 요청입니다.")
         source.calls shouldBe emptyList()
     }
 
@@ -137,10 +137,10 @@ class ExcelHttpContractTests {
         source.calls shouldBe listOf("attendance:3")
 
         source.attendance = source.attendance!!.copy(programs = emptyList())
-        admin("/excel/trainee/3").assertError(500, "해당 연수자가 신청한 프로그램이 없습니다.")
+        admin("/excel/trainee/3").assertError(404, "해당 연수자가 신청한 프로그램이 없습니다.")
         source.attendance = null
-        admin("/excel/trainee/3").assertError(500, "해당 연수자를 찾을 수 없습니다.")
-        admin("/excel/trainee/abc").response.status shouldBe 500
+        admin("/excel/trainee/3").assertError(404, "해당 연수자를 찾을 수 없습니다.")
+        admin("/excel/trainee/abc").assertError(400, "잘못된 요청입니다.")
     }
 
     @Test
