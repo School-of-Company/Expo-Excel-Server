@@ -27,6 +27,12 @@ docker compose up -d --wait
 ./gradlew bootRun
 ```
 
+입장 기록 엑셀(`GET /excel/entry-records/{expo_id}?from=&to=`)은 Expo-Attendance-Server의
+`GET /internal/expos/{expoId}/entry-records`(Attendance #150)를 페이지(2000건)씩 끝까지 읽고, 이름은 유저 서비스
+`names` 내부 API로 채웁니다. 연결 설정 `ATTENDANCE_SERVICE_URL`과 `ATTENDANCE_INTERNAL_TOKEN`(Attendance `INTERNAL_TOKEN`과 같은 값)은
+**선택**입니다. 둘 다 비우면 이 다운로드만 503이고 다른 엑셀과 기동에는 영향이 없으며, 하나만 넣으면 기동에 실패합니다.
+`from`/`to`(`yyyy-MM-dd`)는 함께 주거나 모두 생략합니다.
+
 기본 서버 주소는 `http://localhost:8083`, DB 포트는 `35432`입니다.
 로컬 서버와 DB는 루프백 주소에만 바인딩됩니다.
 Swagger는 기본 비활성화입니다. 선택 환경 변수 `SWAGGER_ENABLED=true`로 켜면

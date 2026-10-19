@@ -40,6 +40,35 @@ class UserClient(
             .fetchRequired(NAME)
     }
 
+    /**
+     * 일반 참가자 이름. 요청한 ID를 모두 돌려주거나, 없는 ID·다른 행사 참가자가 하나라도 있으면 공급자가 404로 거절하고 여기서는 null이다.
+     * 한 번에 [MAX_NAME_IDS]개까지다.
+     */
+    fun standardParticipantNames(
+        expoId: String,
+        participantIds: List<Long>,
+    ): List<StandardParticipantName>? {
+        require(participantIds.size in 1..MAX_NAME_IDS)
+        return http
+            .post()
+            .uri("/internal/standard-participants/names")
+            .body(mapOf("expoId" to expoId, "participantIds" to participantIds))
+            .fetchOrNull(NAME)
+    }
+
+    /** 연수자 이름. 거절 규칙과 상한은 [standardParticipantNames]와 같다. */
+    fun traineeNames(
+        expoId: String,
+        traineeIds: List<Long>,
+    ): List<TraineeName>? {
+        require(traineeIds.size in 1..MAX_NAME_IDS)
+        return http
+            .post()
+            .uri("/internal/trainees/names")
+            .body(mapOf("expoId" to expoId, "traineeIds" to traineeIds))
+            .fetchOrNull(NAME)
+    }
+
     // cursor가 null이면 쿼리에서 빠진다(처음부터)
     private fun detailPage(
         kind: String,
@@ -60,6 +89,9 @@ class UserClient(
 
         // ponytail: User GetStandardParticipantNamesReqDto.MAX_PARTICIPANT_IDS(10,000)와 같다. 공급자 상한이 바뀌면 함께 바꾼다.
         const val MAX_BRIEF_IDS = 10_000
+
+        // User GetStandardParticipantNamesReqDto.MAX_PARTICIPANT_IDS·GetTraineeNamesReqDto.MAX_TRAINEE_IDS(각 10,000)와 같다.
+        const val MAX_NAME_IDS = 10_000
     }
 }
 
@@ -120,4 +152,14 @@ data class StandardParticipantBrief(
     val name: String?,
     val phoneNumber: String?,
     val personalInformationStatus: Boolean?,
+)
+
+data class StandardParticipantName(
+    val participantId: Long,
+    val name: String?,
+)
+
+data class TraineeName(
+    val traineeId: Long,
+    val name: String?,
 )

@@ -49,3 +49,7 @@ clients:
   expo:
     url: ${EXPO_SERVICE_URL}
     internal-token: ${EXPO_INTERNAL_TOKEN}
+  # 입장 기록 엑셀 전용 선택 공급자. 둘 다 비우면 그 다운로드만 503이고 기동에는 영향이 없다(둘 중 하나만 있으면 기동 실패).
+  attendance:
+    url: ${ATTENDANCE_SERVICE_URL:}
+    internal-token: ${ATTENDANCE_INTERNAL_TOKEN:}
