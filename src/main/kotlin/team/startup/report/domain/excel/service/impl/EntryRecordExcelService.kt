@@ -95,7 +95,7 @@ class EntryRecordExcelService(
 
     /**
      * 유저 서비스는 요청 ID가 하나라도 없으면 전체를 404로 거절한다(null). 그럴 때는 반으로 나눠 다시 물어 없는 ID만 빈 칸으로 남긴다.
-     * 404 외 실패는 예외로 올라가 전체 실패다.
+     * 404 외 실패는 예외로 올라가 전체 실패다. 배치당 [MAX_NAME_CALLS_PER_BATCH]번을 넘기면 더 묻지 않고 남은 ID는 빈 칸이다.
      */
     private fun resolveNames(
         ids: List<Long>,
@@ -103,18 +103,26 @@ class EntryRecordExcelService(
     ): Map<Long, String> {
         val result = mutableMapOf<Long, String>()
 
-        fun resolve(batch: List<Long>) {
-            if (batch.isEmpty()) return
-            val found = fetch(batch)
-            if (found != null) {
-                batch.forEach { id -> found[id]?.let { result[id] = it } }
-            } else if (batch.size > 1) {
-                val half = batch.size / 2
-                resolve(batch.subList(0, half))
-                resolve(batch.subList(half, batch.size))
+        ids.chunked(UserClient.MAX_NAME_IDS).forEach { chunk ->
+            var calls = 0
+
+            fun resolve(batch: List<Long>) {
+                if (batch.isEmpty() || calls >= MAX_NAME_CALLS_PER_BATCH) return
+                calls++
+                val found = fetch(batch)
+                if (found != null) {
+                    batch.forEach { id -> found[id]?.let { result[id] = it } }
+                } else if (batch.size > 1) {
+                    val half = batch.size / 2
+                    resolve(batch.subList(0, half))
+                    resolve(batch.subList(half, batch.size))
+                }
+            }
+            resolve(chunk)
+            if (calls >= MAX_NAME_CALLS_PER_BATCH) {
+                log.warn("이름 조회 호출 상한 도달: 배치 {}건 중 일부 이름을 빈 칸으로 둡니다", chunk.size)
             }
         }
-        ids.chunked(UserClient.MAX_NAME_IDS).forEach(::resolve)
         return result
     }
 
@@ -128,6 +136,10 @@ class EntryRecordExcelService(
     private companion object {
         // 힙·Gateway 대기를 확인할 수 없어 보수적으로 둔 값이다(#65, 실측 후 조정). 엑셀 한 시트 행 한도(1,048,576) 안이다
         const val MAX_RECORDS = 300_000L
+
+        // 꽉 찬 배치(10,000개)에서 없는 ID 하나를 찾는 데 약 2×log2(10,000)+1 ≈ 29번이 든다. 100이면 없는 ID 3개까지는 모두 찾고,
+        // 배치 전체가 없는 최악(2n−1 ≈ 2만 번 순차 호출)에서도 다운로드가 시간 초과 전에 끝난다.
+        const val MAX_NAME_CALLS_PER_BATCH = 100
         val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
         val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }

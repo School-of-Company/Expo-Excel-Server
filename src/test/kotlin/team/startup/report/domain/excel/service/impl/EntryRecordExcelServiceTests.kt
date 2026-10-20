@@ -175,6 +175,17 @@ class EntryRecordExcelServiceTests :
             records.drop(1).map { it[3] } shouldBe listOf("가", null, "다")
         }
 
+        "모르는 대상이 많아도 이름 조회는 배치당 100번에서 멈추고 남은 이름은 빈 칸으로 다운로드가 끝난다" {
+            // 상한이 없으면 300개가 모두 없을 때 2×300−1 = 599번 묻는다
+            attendance.on(ALL_PAGE_0, body = page(0, 300, List(300) { record(id = it + 1L) }))
+            namesRoute(STANDARD_NAMES, "participantIds", "participantId", emptyMap())
+
+            val (records, _) = sheets(service.execute("e1", null, null))
+
+            user.requests.size shouldBe 100
+            records.drop(1).map { it[3] }.toSet() shouldBe setOf(null)
+        }
+
         "알 수 없는 구분·참가 유형 값은 원문 그대로 보여 준다" {
             attendance.on(
                 ALL_PAGE_0,
