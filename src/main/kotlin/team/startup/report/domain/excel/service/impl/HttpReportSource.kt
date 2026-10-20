@@ -108,6 +108,7 @@ class HttpReportSource(
             information = unresolved.traineeAnswers(trainee.information, trainee.participantId, trainee.registration, attendance = true),
             programs = applications.map { programs.getValue(it.trainingProgramId) },
             school = trainee.school,
+            location = expoSummary.location,
         ).also { unresolved.report("attendance", trainee.expoId) }
     }
 

@@ -197,6 +197,7 @@ class ExcelRenderersTests :
                             expoTitle = "2026 AI 박람회",
                             traineeName = "홍길동",
                             trainingId = "TR-1",
+                            location = "테스트전시장",
                             information = linkedMapOf("학교명" to "광주초", "이름" to "홍길동(폼)"),
                             programs =
                                 listOf(
@@ -222,8 +223,8 @@ class ExcelRenderersTests :
                     listOf("출  석  부"),
                     listOf("과정명", null, "2026 AI 박람회 직무연수 (2,4기)"),
                     listOf("연수일시", null, "2026.05.01.(금)/05.02.(토) 해당일 입력"),
-                    listOf("장소", null, "김대중컨벤션센터"),
-                    listOf("담당자", null, "남인혜 장학사(380-4587)"),
+                    listOf("장소", null, "테스트전시장"),
+                    listOf("담당자", null, ""),
                     header + "05.01.(금)" + blankHeader + tail,
                     bottom,
                     programs,
@@ -282,6 +283,25 @@ class ExcelRenderersTests :
             sheet.cell(10, 9).cellStyle.let {
                 it.fillPattern shouldBe FillPatternType.NO_FILL
                 it.assertThinBorders()
+            }
+        }
+
+        "출석부: 장소 값이 없으면 고정값 없이 빈 칸" {
+            read(
+                renderTraineeAttendance(
+                    TraineeAttendance(
+                        expoTitle = "박람회",
+                        traineeName = "홍길동",
+                        trainingId = null,
+                        information = emptyMap(),
+                        programs = listOf(program(1, "기조 강연", TrainingCategory.ESSENTIAL)),
+                    ),
+                    listOf(LocalDate.of(2026, 5, 1)),
+                ),
+            ).use { workbook ->
+                val sheet = workbook.getSheet("출석부")
+                sheet.cell(4, 2).stringCellValue shouldBe ""
+                sheet.cell(5, 2).stringCellValue shouldBe ""
             }
         }
 

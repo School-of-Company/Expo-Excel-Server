@@ -279,7 +279,17 @@ class ExcelDownloadService(
                         setOf("이름", "연수원아이디", "전화번호") + informationAnswers(person.information.answers, person.information.questions).values
                 val info = existingAnswers(registration, rows, setOf("학교명", "소속"))
                 val programs = programs(rows)
-                val attendance = TraineeAttendance(expo.expo(expoId)!!.title, person.name, person.trainingId, info, programs, person.school)
+                val expoSummary = expo.expo(expoId)!!
+                val attendance =
+                    TraineeAttendance(
+                        expoSummary.title,
+                        person.name,
+                        person.trainingId,
+                        info,
+                        programs,
+                        person.school,
+                        expoSummary.location,
+                    )
                 ExcelFile(
                     "attachment; filename=\"Trainee_Attendance.xlsx\"",
                     renderTraineeAttendance(

@@ -82,4 +82,5 @@ data class TraineeAttendance(
     // 신청 순서(applicationId 오름차순)
     val programs: List<TrainingProgram>,
     val school: String? = null,
+    val location: String? = null,
 )
