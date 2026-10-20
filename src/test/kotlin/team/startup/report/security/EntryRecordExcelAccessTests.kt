@@ -80,7 +80,7 @@ class EntryRecordExcelAccessTests {
         response.headers().firstValue("Cache-Control").get() shouldContain "no-store"
         XSSFWorkbook(ByteArrayInputStream(response.body())).use {
             it.getSheetAt(0).values()[1][3] shouldBe "홍길동"
-            it.getSheetAt(1).values()[1] shouldBe listOf("2026-10-19", "교사", "3.0")
+            it.getSheetAt(1).values()[1] shouldBe listOf("2026-10-19", "교원", "3.0")
         }
         attendance.requests.single().token shouldBe "attendance-secret"
         expo.requests.single().authorization shouldBe "Bearer $token"

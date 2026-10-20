@@ -135,6 +135,24 @@ class ExcelDownloadTests {
         application.requests.size shouldBe 2
         val filter = StubProvider.JSON.readTree(application.requests.first().body).path("filter")
         filter.path("search").asString() shouldBe "회차"
+        filter.has("q") shouldBe false
+    }
+
+    @Test
+    fun `개인 출석부 전체 범위는 본인 이름으로 스냅샷 대상을 줄인다`() {
+        user.on("GET /internal/trainees/10/details", body = trainee() + ("expoId" to EVENT))
+        user.on("POST /internal/standard-participants/names", body = listOf(mapOf("participantId" to 1, "name" to " 교원 ")))
+        val other =
+            target(SECOND, type = "TRAINING", program = 8).let {
+                it +
+                    ("application" to (it["application"] as Map<*, *>) + ("traineeId" to 11))
+            }
+        application.on("POST $TARGET", body = snapshot(listOf(target(FIRST, type = "TRAINING"), other), null))
+        val response = send(mapOf("template" to "ATTENDANCE", "scope" to "FILTER", "traineeId" to 10))
+        response.status shouldBe 200
+        val filter = StubProvider.JSON.readTree(application.requests.single().body).path("filter")
+        filter.path("q").asString() shouldBe "교원"
+        filter.path("programType").asString() shouldBe "TRAINING"
     }
 
     @Test

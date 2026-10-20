@@ -1,6 +1,7 @@
 package team.startup.report.domain.excel.service.impl
 
 import org.apache.poi.xssf.streaming.SXSSFWorkbook
+import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.global.client.EntryRecord
 import team.startup.report.global.client.WalkInCount
 import java.time.LocalDateTime
@@ -19,19 +20,12 @@ private val SUBJECT_LABELS = mapOf("STANDARD" to "일반 참가자", "TRAINEE" t
 
 // 알 수 없는 값은 원문 그대로 보여 준다. STUDENT는 이전 값, CHILD는 성인 외 모두다.
 private val PARTICIPATION_LABELS =
-    mapOf(
-        "KINDERGARTEN_STUDENT" to "미취학 아동",
-        "ELEMENTARY_STUDENT" to "초등학생",
-        "MIDDLE_SCHOOL_STUDENT" to "중학생",
-        "HIGH_SCHOOL_STUDENT" to "고등학생",
-        "PARENT" to "학부모",
-        "GENERAL" to "일반인",
-        "TEACHER" to "교사",
-        "PRE_SERVICE_TEACHER" to "예비교사",
-        "ADULT" to "성인",
-        "STUDENT" to "어린이·학생",
-        "CHILD" to "학생",
-    )
+    PARTICIPANT_TYPE_LABELS +
+        mapOf(
+            "ADULT" to "성인",
+            "STUDENT" to "어린이·학생",
+            "CHILD" to "학생",
+        )
 
 fun eventLabel(value: String) = EVENT_LABELS[value] ?: value
 

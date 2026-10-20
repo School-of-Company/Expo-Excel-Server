@@ -112,7 +112,8 @@ class ExcelDownloadService(
                         } else {
                             supplied
                         }
-                    val initial = application.createTargetSnapshot(expoId, filter)
+                    val q = if (request.template == ExcelTemplate.ATTENDANCE) participantName(expoId, request.traineeId!!) else null
+                    val initial = application.createTargetSnapshot(expoId, filter, q)
                     check(initial.totalElements >= 0)
                     if (initial.totalElements >
                         10_000
@@ -159,6 +160,18 @@ class ExcelDownloadService(
             if (it <= Instant.now()) throw ExpectedException(HttpStatus.GONE, "다운로드 스냅샷이 만료되었습니다. 다시 요청해 주세요.")
         }
         return items
+    }
+
+    // ponytail: Application 스냅샷에 연수자 조건이 없어 본인 이름(q)으로 후보만 줄이고 traineeId는 메모리에서 거른다.
+    // 같은 이름을 포함한 신청이 1만 건을 넘으면 여전히 413이다. Application에 traineeId 조건이 생기면 그것으로 바꾼다.
+    private fun participantName(
+        expoId: UUID,
+        traineeId: Long,
+    ): String? {
+        val participantId = user.trainee(traineeId)?.participantId ?: return null
+        val name = user.standardParticipantNames(expoId.toString(), listOf(participantId))?.singleOrNull()?.name
+        // q는 부분 일치라 앞 50자만 보내도 본인은 빠지지 않는다.
+        return name?.trim()?.take(50)?.ifBlank { null }
     }
 
     private fun matches(
@@ -279,7 +292,17 @@ class ExcelDownloadService(
                         setOf("이름", "연수원아이디", "전화번호") + informationAnswers(person.information.answers, person.information.questions).values
                 val info = existingAnswers(registration, rows, setOf("학교명", "소속"))
                 val programs = programs(rows)
-                val attendance = TraineeAttendance(expo.expo(expoId)!!.title, person.name, person.trainingId, info, programs, person.school)
+                val expoSummary = expo.expo(expoId)!!
+                val attendance =
+                    TraineeAttendance(
+                        expoSummary.title,
+                        person.name,
+                        person.trainingId,
+                        info,
+                        programs,
+                        person.school,
+                        expoSummary.location,
+                    )
                 ExcelFile(
                     "attachment; filename=\"Trainee_Attendance.xlsx\"",
                     renderTraineeAttendance(

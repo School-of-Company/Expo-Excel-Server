@@ -77,6 +77,8 @@ class ExpoClient(
 
 data class ExpoSummary(
     val title: String?,
+    // Expo 내부 조회(GET /internal/expo/{expoId})가 아직 내려주지 않아 현재는 항상 null. 계약에 추가되면 그대로 쓴다.
+    val location: String? = null,
 )
 
 data class StandardProgramSummary(
