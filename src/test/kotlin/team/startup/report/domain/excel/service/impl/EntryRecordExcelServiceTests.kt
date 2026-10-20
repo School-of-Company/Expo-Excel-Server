@@ -240,8 +240,11 @@ class EntryRecordExcelServiceTests :
             attendance.on(ALL_PAGE_0, 404, """{"status":404}""")
             shouldThrow<ExpectedException> { service.execute("e1", null, null) }.status shouldBe HttpStatus.NOT_FOUND
 
-            attendance.on(ALL_PAGE_0, body = page(0, 1_000_001, emptyList()))
-            shouldThrow<ExpectedException> { service.execute("e1", null, null) }.status shouldBe HttpStatus.PAYLOAD_TOO_LARGE
+            attendance.on(ALL_PAGE_0, body = page(0, 300_001, emptyList()))
+            val tooLarge = shouldThrow<ExpectedException> { service.execute("e1", null, null) }
+            tooLarge.status shouldBe HttpStatus.PAYLOAD_TOO_LARGE
+            tooLarge.message shouldContain "300000건"
+            tooLarge.message shouldContain "기간을 줄여 주세요"
         }
 
         "기간은 둘 다 주거나 모두 생략해야 하고 from이 to보다 늦을 수 없다(공급자 호출 전)" {
