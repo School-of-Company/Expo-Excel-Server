@@ -201,6 +201,7 @@ class EntryRecordExcelServiceTests :
                 "ELEMENTARY_STUDENT" to "초등학생",
                 "MIDDLE_SCHOOL_STUDENT" to "중학생",
                 "HIGH_SCHOOL_STUDENT" to "고등학생",
+                "SCHOOL_STAFF" to "교직원",
                 "PARENT" to "학부모",
                 "GENERAL" to "일반인",
                 "TEACHER" to "교사",

@@ -125,6 +125,21 @@ class MappedAnswersTests :
             mapped.unresolved shouldBe 1
         }
 
+        "일반 참가자: 폼 보기 문구가 없는 직업 코드는 공유 라벨을 쓰고 SCHOOL_STAFF도 한글로 나온다" {
+            fun occupation(code: String) =
+                standardInformation(
+                    json("{}"),
+                    REGISTRATION_QUESTIONS,
+                    ParticipantProfile(code, "GWANGJU", null),
+                    companion = true,
+                ).values["직업"]
+
+            occupation("SCHOOL_STAFF") shouldBe "교직원"
+            occupation("KINDERGARTEN_STUDENT") shouldBe "미취학 아동"
+            // 폼 보기 문구가 있으면 그것이 우선이다
+            occupation("GENERAL") shouldBe "일반 성인"
+        }
+
         "신청 폼: 스냅샷이 없으면 저장된 제목과 값을 문자열로 그대로 쓴다" {
             val mapped = informationAnswers(json("""{"학교명": "가초", "학년": 3, "동의": true, "과목": ["국어", "수학"], "비고": null}"""), null)
 
