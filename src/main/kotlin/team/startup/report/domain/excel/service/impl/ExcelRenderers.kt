@@ -261,12 +261,12 @@ fun renderTraineeAttendance(
     sheet.addMergedRegion(CellRangeAddress(0, 0, 0, 9))
     rowIdx++
 
-    // ponytail: 장소·담당자는 v1 하드코딩 값 그대로. 행사별 값으로 바꾸는 것은 외부 계약 변경이라 별도 제안.
+    // 장소는 박람회 정보의 값, 없으면 빈 칸. 담당자는 개인 정보라 코드에 두지 않고 빈 칸으로 둔다(수기 기입).
     listOf(
         "과정명" to courseName,
         "연수일시" to trainingDateText,
-        "장소" to "김대중컨벤션센터",
-        "담당자" to "남인혜 장학사(380-4587)",
+        "장소" to attendance.location.orEmpty(),
+        "담당자" to "",
     ).forEach { (label, value) ->
         val row = sheet.createRow(rowIdx++).apply { heightInPoints = 30f }
         row.createCell(0).apply {

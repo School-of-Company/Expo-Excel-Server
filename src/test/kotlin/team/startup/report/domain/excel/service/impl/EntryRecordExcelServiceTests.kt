@@ -133,7 +133,7 @@ class EntryRecordExcelServiceTests :
             records[2001] shouldBe listOf("2026-10-19 12:00:00", "퇴장", "연수자", "김연수", null, null, null)
             records[2002] shouldBe listOf("2026-10-19 12:30:00", "재입장", "일반 참가자", "홍길동", null, null, "gate-1")
             records[2003] shouldBe listOf("2026-10-19 13:00:00", "입장", "종이 QR", null, "성인", "ADT-0001-K7", "gate-2")
-            walkIn shouldBe listOf(listOf("날짜", "참가 유형", "인원"), listOf("2026-10-19", "교사", "3.0"))
+            walkIn shouldBe listOf(listOf("날짜", "참가 유형", "인원"), listOf("2026-10-19", "교원", "3.0"))
 
             // 이름은 중복 없이 한 번에 묻고 내부 토큰을 공급자별로 보낸다
             attendance.requests.map { it.token }.toSet() shouldBe setOf(ATTENDANCE_TOKEN)
@@ -208,13 +208,14 @@ class EntryRecordExcelServiceTests :
 
         "참가 유형 표시 이름 매핑" {
             mapOf(
-                "KINDERGARTEN_STUDENT" to "미취학 아동",
+                "KINDERGARTEN_STUDENT" to "미취학",
                 "ELEMENTARY_STUDENT" to "초등학생",
                 "MIDDLE_SCHOOL_STUDENT" to "중학생",
                 "HIGH_SCHOOL_STUDENT" to "고등학생",
+                "SCHOOL_STAFF" to "교직원",
                 "PARENT" to "학부모",
                 "GENERAL" to "일반인",
-                "TEACHER" to "교사",
+                "TEACHER" to "교원",
                 "PRE_SERVICE_TEACHER" to "예비교사",
                 "ADULT" to "성인",
                 "STUDENT" to "어린이·학생",
@@ -250,8 +251,11 @@ class EntryRecordExcelServiceTests :
             attendance.on(ALL_PAGE_0, 404, """{"status":404}""")
             shouldThrow<ExpectedException> { service.execute("e1", null, null) }.status shouldBe HttpStatus.NOT_FOUND
 
-            attendance.on(ALL_PAGE_0, body = page(0, 1_000_001, emptyList()))
-            shouldThrow<ExpectedException> { service.execute("e1", null, null) }.status shouldBe HttpStatus.PAYLOAD_TOO_LARGE
+            attendance.on(ALL_PAGE_0, body = page(0, 300_001, emptyList()))
+            val tooLarge = shouldThrow<ExpectedException> { service.execute("e1", null, null) }
+            tooLarge.status shouldBe HttpStatus.PAYLOAD_TOO_LARGE
+            tooLarge.message shouldContain "300000건"
+            tooLarge.message shouldContain "기간을 줄여 주세요"
         }
 
         "기간은 둘 다 주거나 모두 생략해야 하고 from이 to보다 늦을 수 없다(공급자 호출 전)" {

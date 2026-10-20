@@ -1,5 +1,7 @@
 package team.startup.report.global.client
 
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonUnwrapped
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
@@ -21,14 +23,16 @@ class ApplicationClient(
             .body(mapOf("applicationIds" to applicationIds))
             .targetResponse()
 
+    /** [q]는 Application이 User 이름·전화번호 부분 일치로 참가자 후보를 좁히는 내부 조건이다. 관리자 필터로는 받지 않는다. */
     fun createTargetSnapshot(
         expoId: UUID,
         filter: ApplicationFilter,
+        q: String? = null,
     ): ApplicationSnapshot =
         http
             .post()
             .uri(TARGET_PATH, expoId)
-            .body(mapOf("filter" to filter, "limit" to 500))
+            .body(mapOf("filter" to SnapshotFilter(filter, q), "limit" to 500))
             .targetResponse(snapshotCreation = true)
 
     fun nextTargetSnapshot(
@@ -77,6 +81,11 @@ class ApplicationClient(
         private const val TARGET_PATH = "/internal/expos/{expoId}/program-session-applications/report-targets"
     }
 }
+
+private data class SnapshotFilter(
+    @get:JsonUnwrapped val filter: ApplicationFilter,
+    @get:JsonInclude(JsonInclude.Include.NON_NULL) val q: String?,
+)
 
 data class StandardApplication(
     val applicationId: Long,

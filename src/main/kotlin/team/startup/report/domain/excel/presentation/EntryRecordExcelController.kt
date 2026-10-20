@@ -32,7 +32,7 @@ class EntryRecordExcelController(
         summary = "입장 기록 엑셀 다운로드",
         description =
             "참여 서비스의 입장·재입장·퇴장 기록을 발생 시각 순으로 출력하고, 간편입장 집계는 별도 시트에 담습니다. " +
-                "from·to(yyyy-MM-dd, 둘 다 포함)는 함께 주거나 모두 생략(박람회 전체 기간)합니다. 최대 1,000,000건입니다.",
+                "from·to(yyyy-MM-dd, 둘 다 포함)는 함께 주거나 모두 생략(박람회 전체 기간)합니다. 최대 300,000건입니다.",
     )
     @ApiResponses(
         value = [
@@ -68,7 +68,7 @@ class EntryRecordExcelController(
             ),
             ApiResponse(
                 responseCode = "413",
-                description = "기록이 1,000,000건 초과",
+                description = "기록이 300,000건 초과",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
