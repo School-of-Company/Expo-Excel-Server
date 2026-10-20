@@ -135,7 +135,7 @@ class MappedAnswersTests :
                 ).values["직업"]
 
             occupation("SCHOOL_STAFF") shouldBe "교직원"
-            occupation("KINDERGARTEN_STUDENT") shouldBe "미취학 아동"
+            occupation("KINDERGARTEN_STUDENT") shouldBe "미취학"
             // 폼 보기 문구가 있으면 그것이 우선이다
             occupation("GENERAL") shouldBe "일반 성인"
         }
