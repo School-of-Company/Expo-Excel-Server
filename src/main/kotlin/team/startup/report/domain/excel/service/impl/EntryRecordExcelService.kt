@@ -126,8 +126,8 @@ class EntryRecordExcelService(
     }
 
     private companion object {
-        // 엑셀 한 시트의 행 한도(1,048,576)에 머리글을 더해도 넘지 않게 둔다
-        const val MAX_RECORDS = 1_000_000L
+        // 힙·Gateway 대기를 확인할 수 없어 보수적으로 둔 값이다(#65, 실측 후 조정). 엑셀 한 시트 행 한도(1,048,576) 안이다
+        const val MAX_RECORDS = 300_000L
         val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
         val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }
