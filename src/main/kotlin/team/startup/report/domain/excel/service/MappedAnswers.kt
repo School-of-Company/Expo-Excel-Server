@@ -85,19 +85,7 @@ fun standardInformation(
 
 private val IDENTITY_TYPES = setOf("NAME", "PHONE_NUMBER")
 
-// Form occupation.enum.ts·region.enum.ts 주석의 문구. 직업은 폼 jsonData 문구가 우선이고 없을 때만 쓴다.
-private val OCCUPATION_LABELS =
-    mapOf(
-        "KINDERGARTEN_STUDENT" to "유치원생",
-        "ELEMENTARY_STUDENT" to "초등학생",
-        "MIDDLE_SCHOOL_STUDENT" to "중학생",
-        "HIGH_SCHOOL_STUDENT" to "고등학생",
-        "SCHOOL_STAFF" to "교직원",
-        "PARENT" to "학부모",
-        "GENERAL" to "일반인",
-        "TEACHER" to "교사",
-        "PRE_SERVICE_TEACHER" to "예비교사",
-    )
+// 직업 라벨은 PARTICIPANT_TYPE_LABELS(입장 기록 시트와 공유). 직업은 폼 jsonData 문구가 우선이고 없을 때만 쓴다.
 private val REGION_LABELS = mapOf("GWANGJU" to "광주", "JEONNAM" to "전남", "OTHER" to "그 외")
 
 /** 설문 답변(문항 ID 키)을 제출 당시 제목으로 바꾼다. */
@@ -198,7 +186,7 @@ private class Counter(
             if (question.isRegion) {
                 REGION_LABELS[value]
             } else {
-                question.jsonData?.get(value)?.let(::choiceText) ?: OCCUPATION_LABELS[value]
+                question.jsonData?.get(value)?.let(::choiceText) ?: PARTICIPANT_TYPE_LABELS[value]
             }
         return label ?: value.also { count++ }
     }
