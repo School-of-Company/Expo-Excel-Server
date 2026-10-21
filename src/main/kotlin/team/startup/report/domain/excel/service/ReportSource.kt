@@ -72,6 +72,17 @@ data class ProgramParticipant(
     val name: String?,
     val phoneNumber: String?,
     val personalInformationStatus: Boolean?,
+    // 신청 관리 다운로드(PROGRAM 양식)만 채운다. null이면 v1 열만 쓴다(GET 명단의 레거시 신청에는 폼 답변·경로가 없다)
+    val application: ProgramApplicationColumns? = null,
+)
+
+/** 회차 신청 열(Report #76). [answers]는 [informationAnswers]로 바꾼 제출 당시 폼 답변이다. */
+data class ProgramApplicationColumns(
+    val affiliation: String?,
+    val occupation: String?,
+    val admissionRoute: String?,
+    val appliedAt: String,
+    val answers: Map<String, String?>,
 )
 
 data class TraineeAttendance(

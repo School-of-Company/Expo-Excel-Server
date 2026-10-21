@@ -65,6 +65,8 @@ data class ApplicationRow(
     val definition: JsonNode,
     val questions: JsonNode,
     val answers: JsonNode,
+    // PRE_REGISTRATION·ONSITE. 사전/현장 정원이 없는 회차와 V23 이전 신청은 null이다
+    val admissionRoute: String? = null,
 )
 
 data class ApplicationSelection(

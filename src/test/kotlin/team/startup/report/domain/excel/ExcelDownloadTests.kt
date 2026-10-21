@@ -75,16 +75,11 @@ class ExcelDownloadTests {
         select(listOf(target(FIRST), target(SECOND)))
         expo.on("GET /internal/expo/$EVENT/standard-programs/7", body = mapOf("id" to 7))
         user.on(
-            "POST /internal/standard-participants/details",
+            "GET /internal/expos/$EVENT/standard-participants/details?size=500",
             body =
-                listOf(
-                    mapOf(
-                        "participantId" to 1,
-                        "name" to "=SUM(A1)",
-                        "phoneNumber" to "010-personal",
-                        "notificationPhoneNumber" to "010-owner",
-                        "personalInformationStatus" to true,
-                    ),
+                mapOf(
+                    "items" to listOf(person(1) + mapOf("name" to "=SUM(A1)", "phoneNumber" to "010-personal"), person(2)),
+                    "nextCursor" to null,
                 ),
         )
         val response = send(selected("PROGRAM", listOf(FIRST, SECOND)) + ("programId" to 7))
@@ -100,8 +95,57 @@ class ExcelDownloadTests {
                 .getCell(1)
                 .cellType.name shouldBe "STRING"
             sheet.getRow(1).getCell(2).stringCellValue shouldBe "010-personal"
-            sheet.getRow(0).lastCellNum.toInt() shouldBe 7
         }
+    }
+
+    @Test
+    fun `프로그램 명단은 소속·직업·신청 경로·신청 시각과 문항 제목별 폼 답변 열을 붙인다`() {
+        val questions =
+            listOf(
+                mapOf(
+                    "id" to "q2",
+                    "title" to "학년",
+                    "formType" to "DROPDOWN",
+                    "order" to 2,
+                    "jsonData" to mapOf("0" to "1학년", "1" to "2학년"),
+                ),
+                mapOf("id" to "q1", "title" to "학교", "formType" to "SENTENCE", "order" to 1),
+            )
+        select(
+            listOf(
+                target(FIRST, answers = mapOf("학년" to "1", "학교" to "광주초"), questions = questions, route = "ONSITE"),
+                // 문항이 바뀐 신청: 학년 문항이 없고 새 문항이 있다
+                target(
+                    SECOND,
+                    participant = 2,
+                    answers = mapOf("보호자 연락처" to "010-guardian", "학교" to "전남중"),
+                    questions = listOf(mapOf("id" to "q3", "title" to "보호자 연락처", "formType" to "SENTENCE", "order" to 1)),
+                    route = "PRE_REGISTRATION",
+                ),
+            ),
+        )
+        expo.on("GET /internal/expo/$EVENT/standard-programs/7", body = mapOf("id" to 7))
+        user.on(
+            "GET /internal/expos/$EVENT/standard-participants/details?size=500",
+            body =
+                mapOf(
+                    "items" to
+                        listOf(
+                            person(1) + mapOf("occupation" to "ELEMENTARY_STUDENT", "school" to "등록초"),
+                            person(2),
+                            person(3),
+                        ),
+                    "nextCursor" to null,
+                ),
+        )
+        val response = send(selected("PROGRAM", listOf(FIRST, SECOND)) + ("programId" to 7))
+        response.status shouldBe 200
+        sheet(response) shouldBe
+            listOf(
+                listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "소속", "직업", "신청 경로", "신청 시각", "학교", "학년", "보호자 연락처", "학번", "서명", "비고"),
+                listOf("1.0", "참가자", "010", "동의", "등록초", "초등학생", "현장", "2026-01-01 09:00:00", "광주초", "2학년", null, "", "", ""),
+                listOf("2.0", "참가자", "010", "동의", null, null, "사전", "2026-01-01 09:00:00", "전남중", null, "010-guardian", "", "", ""),
+            )
     }
 
     @Test
@@ -418,6 +462,9 @@ class ExcelDownloadTests {
         type: String = "STANDARD",
         program: Long = 7,
         status: String = "CONFIRMED",
+        answers: Map<String, Any?> = mapOf("학교명" to "프로그램학교", "새열" to "추가 금지"),
+        questions: List<Any> = emptyList(),
+        route: String? = null,
     ): Map<String, Any> =
         mapOf(
             "expoId" to EVENT,
@@ -444,8 +491,9 @@ class ExcelDownloadTests {
                             "startedAt" to "2026-01-01T09:00",
                             "endedAt" to "2026-01-01T10:00",
                         ),
-                    "questions" to emptyList<Any>(),
-                    "answers" to mapOf("학교명" to "프로그램학교", "새열" to "추가 금지"),
+                    "questions" to questions,
+                    "answers" to answers,
+                    "admissionRoute" to route,
                 ),
         )
 
