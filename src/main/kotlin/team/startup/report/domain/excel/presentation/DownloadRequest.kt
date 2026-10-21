@@ -3,11 +3,13 @@ package team.startup.report.domain.excel.presentation
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.Schema
 import team.startup.report.global.client.ApplicationFilter
+import team.startup.report.global.client.RegistrationFilter
 import tools.jackson.databind.JsonNode
 import java.util.UUID
 
-// APPLICATION_LEDGER는 프로그램·연수 신청 1건 = 1행 원장이다(Report #80). 나머지는 기존 사람 명단·인쇄 양식이다
-enum class ExcelTemplate { STANDARD, TRAINEE, PROGRAM, ATTENDANCE, APPLICATION_LEDGER }
+// APPLICATION_LEDGER는 프로그램·연수 신청 1건 = 1행, REGISTRATION_LEDGER는 사전등록 회차 행·예약 행·회차 미지정 현장 등록 행 원장이다(Report #80).
+// 나머지는 기존 사람 명단·인쇄 양식이다
+enum class ExcelTemplate { STANDARD, TRAINEE, PROGRAM, ATTENDANCE, APPLICATION_LEDGER, REGISTRATION_LEDGER }
 
 enum class DownloadScope { SELECTED, FILTER }
 
@@ -25,6 +27,13 @@ data class DownloadRequest(
     val programId: Long? = null,
     @field:Schema(description = "ATTENDANCE 양식 전용 필수 본인 연수자 ID", example = "10")
     val traineeId: Long? = null,
+    @field:Schema(
+        description = "REGISTRATION_LEDGER SELECTED 전용 접수대장 key(중복 없이 1–10000개). APPLICATION:{expoId}:{id} 또는 RESERVATION:{expoId}:{requestId}",
+        example = "[\"APPLICATION:11111111-1111-1111-1111-111111111111:5\"]",
+    )
+    val keys: List<String>? = null,
+    @field:Schema(description = "REGISTRATION_LEDGER FILTER 전용 사전등록 접수대장 필터")
+    val registrationFilter: RegistrationFilter? = null,
 ) {
     @JsonAnySetter
     fun rejectUnknown(

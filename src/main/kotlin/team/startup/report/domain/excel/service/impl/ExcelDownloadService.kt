@@ -47,9 +47,11 @@ class ExcelDownloadService(
         expoId: UUID,
         request: DownloadRequest,
     ): ExcelFile {
-        validate(request)
+        val registrationLedger = request.template == ExcelTemplate.REGISTRATION_LEDGER
+        if (registrationLedger) registration.validate(request) else validate(request)
         return try {
             if (expo.expo(expoId.toString()) == null) throw ExpectedException(HttpStatus.NOT_FOUND, "박람회를 찾을 수 없습니다.")
+            if (registrationLedger) return registration.render(expoId, request)
             val rows =
                 targets(expoId, request).map { it.application }.let { rows ->
                     if (request.scope == DownloadScope.FILTER && request.template == ExcelTemplate.ATTENDANCE) {
@@ -67,7 +69,11 @@ class ExcelDownloadService(
         }
     }
 
+    // 사전등록 원장은 별도 원천(Application #284)이라 따로 둔다. 같은 공급자 클라이언트와 실패 규칙을 쓴다
+    private val registration = RegistrationLedger(application) { expoId -> readAll { user.standardParticipantPage(expoId, it) } }
+
     private fun validate(request: DownloadRequest) {
+        valid(request.keys == null && request.registrationFilter == null, "접수대장 key와 등록 필터는 등록 원장에만 사용할 수 있습니다.")
         when (request.scope) {
             DownloadScope.SELECTED -> {
                 val ids = request.applicationIds
@@ -319,6 +325,11 @@ class ExcelDownloadService(
 
             ExcelTemplate.APPLICATION_LEDGER -> {
                 applicationLedger(expoId, request, rows)
+            }
+
+            // execute에서 원천 조회 전에 RegistrationLedger로 보낸다
+            ExcelTemplate.REGISTRATION_LEDGER -> {
+                error("등록 원장은 신청 대상 경로로 만들지 않는다")
             }
 
             ExcelTemplate.ATTENDANCE -> {

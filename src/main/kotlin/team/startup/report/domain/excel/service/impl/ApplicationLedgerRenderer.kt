@@ -80,7 +80,7 @@ fun renderApplicationLedger(
     var unrecordedHistory = 0
 
     val sheet = workbook.createSheet("신청 원장").apply { defaultColumnWidth = 18 }
-    sheet.writeRow(0, (LEDGER_HEADERS + answerKeys).map(::cell), headerStyle)
+    sheet.writeRow(0, (LEDGER_HEADERS + answerKeys).map(::ledgerCell), headerStyle)
     rows.forEachIndexed { index, row ->
         val person = people.getValue(row.participantId)
         val trainee = row.traineeId?.let(trainees::getValue)
@@ -127,7 +127,7 @@ fun renderApplicationLedger(
                 note,
                 answers[index].unresolved.takeIf { it > 0 }?.toString(),
             ).plus(answerKeys.map { answers[index].values[it] })
-                .map { it?.let(::cell) },
+                .map { it?.let(::ledgerCell) },
             bodyStyle,
         )
     }
@@ -180,7 +180,7 @@ fun renderApplicationLedger(
     ).forEachIndexed { index, (key, value) ->
         metaSheet.writeRow(
             index,
-            listOf(key, value?.let(::cell)),
+            listOf(key, value?.let(::ledgerCell)),
             if (index ==
                 0
             ) {
@@ -194,4 +194,4 @@ fun renderApplicationLedger(
 }
 
 // 원장 답변은 줄바꿈을 보존한다. XML에 쓸 수 없는 제어 문자만 빼고 셀 길이 상한(32,767자)으로 자른다
-private fun cell(value: String): String = value.replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "").take(32767)
+internal fun ledgerCell(value: String): String = value.replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "").take(32767)
