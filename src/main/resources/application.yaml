@@ -53,3 +53,7 @@ clients:
   attendance:
     url: ${ATTENDANCE_SERVICE_URL:}
     internal-token: ${ATTENDANCE_INTERNAL_TOKEN:}
+  # 공개 설문 응답 엑셀 전용 선택 공급자(Form #215). 규칙은 attendance와 같다.
+  form:
+    url: ${FORM_SERVICE_URL:}
+    internal-token: ${FORM_INTERNAL_TOKEN:}

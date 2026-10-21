@@ -33,6 +33,11 @@ docker compose up -d --wait
 **선택**입니다. 둘 다 비우면 이 다운로드만 503이고 다른 엑셀과 기동에는 영향이 없으며, 하나만 넣으면 기동에 실패합니다.
 `from`/`to`(`yyyy-MM-dd`)는 함께 주거나 모두 생략합니다.
 
+공개 만족도 조사 응답 엑셀(`GET /excel/public-surveys/{expo_id}`)은 Expo-Form-Server의
+`GET /internal/surveys/{expoId}/public-answers`(Form #215)를 커서(1000건)로 끝까지 읽어 익명 응답 1건을 1행으로 씁니다.
+참가자 명단과 합치지 않고 전화번호·경품 정보는 없습니다. `FORM_SERVICE_URL`과 `FORM_INTERNAL_TOKEN`(Form `INTERNAL_TOKEN`)은
+입장 기록과 같은 규칙의 **선택** 설정입니다(둘 다 비우면 이 다운로드만 503).
+
 회차 실제 출석 결과 엑셀(`GET /excel/expos/{expoId}/program-attendances?programType=STANDARD|TRAINING&programId=`)은
 같은 Attendance 연결로 `GET /internal/program-attendances/{standard|training}/{programId}`(Attendance #194, `attendanceDate` 필수)를 읽고
 신청(전 상태)·참가자/연수자 상세와 결합합니다. 연결을 비우면 이 다운로드도 503이며, 출석 조회 실패는 전원 미출석 파일이 아니라 502입니다.

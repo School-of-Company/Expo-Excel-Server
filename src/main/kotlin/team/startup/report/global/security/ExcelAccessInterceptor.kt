@@ -17,6 +17,7 @@ import team.startup.report.domain.excel.presentation.EntryRecordExcelController
 import team.startup.report.domain.excel.presentation.ExcelController
 import team.startup.report.domain.excel.presentation.ExcelDownloadController
 import team.startup.report.domain.excel.presentation.ProgramAttendanceExcelController
+import team.startup.report.domain.excel.presentation.PublicSurveyExcelController
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.TraineeDetail
 import team.startup.report.global.client.UserClient
@@ -46,7 +47,8 @@ class ExcelAccessInterceptor(
                 !ExcelController::class.java.isAssignableFrom(handler.beanType) &&
                     !ExcelDownloadController::class.java.isAssignableFrom(handler.beanType) &&
                     !EntryRecordExcelController::class.java.isAssignableFrom(handler.beanType) &&
-                    !ProgramAttendanceExcelController::class.java.isAssignableFrom(handler.beanType)
+                    !ProgramAttendanceExcelController::class.java.isAssignableFrom(handler.beanType) &&
+                    !PublicSurveyExcelController::class.java.isAssignableFrom(handler.beanType)
             )
         ) {
             return true
