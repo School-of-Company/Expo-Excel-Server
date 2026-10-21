@@ -33,6 +33,11 @@ docker compose up -d --wait
 **선택**입니다. 둘 다 비우면 이 다운로드만 503이고 다른 엑셀과 기동에는 영향이 없으며, 하나만 넣으면 기동에 실패합니다.
 `from`/`to`(`yyyy-MM-dd`)는 함께 주거나 모두 생략합니다.
 
+공개 만족도 조사 응답 엑셀(`GET /excel/public-surveys/{expo_id}`)은 Expo-Form-Server의
+`GET /internal/surveys/{expoId}/public-answers`(Form #215)를 커서(1000건)로 끝까지 읽어 익명 응답 1건을 1행으로 씁니다.
+참가자 명단과 합치지 않고 전화번호·경품 정보는 없습니다. `FORM_SERVICE_URL`과 `FORM_INTERNAL_TOKEN`(Form `INTERNAL_TOKEN`)은
+입장 기록과 같은 규칙의 **선택** 설정입니다(둘 다 비우면 이 다운로드만 503).
+
 기본 서버 주소는 `http://localhost:8083`, DB 포트는 `35432`입니다.
 로컬 서버와 DB는 루프백 주소에만 바인딩됩니다.
 Swagger는 기본 비활성화입니다. 선택 환경 변수 `SWAGGER_ENABLED=true`로 켜면

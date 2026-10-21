@@ -18,7 +18,7 @@ import java.time.Duration
 
 /**
  * 원천 공급자(User·Application·Expo) 내부 API 연결 설정. 주소와 내부 토큰은 기본값이 없고 비어 있으면 기동에 실패한다.
- * Attendance는 입장 기록 엑셀 전용 선택 설정이다(Attendance `INTERNAL_TOKEN`).
+ * Attendance는 입장 기록 엑셀, Form은 공개 설문 응답 엑셀 전용 선택 설정이다(Attendance `INTERNAL_TOKEN`, Form `INTERNAL_TOKEN`).
  * 토큰은 각 공급자가 `X-Internal-Token`으로 검증하는 값과 같아야 한다(User `INTERNAL_TOKEN`, Application `APPLICATION_INTERNAL_TOKEN`,
  * Expo `EXPO_INTERNAL_TOKEN`).
  */
@@ -29,6 +29,8 @@ data class ReportClientsProperties(
     val expo: Provider,
     // 입장 기록 엑셀 전용 선택 설정. 주소·토큰이 모두 비어 있으면 그 다운로드만 503이고 나머지 엑셀과 기동에는 영향이 없다.
     val attendance: Provider = Provider("", ""),
+    // 공개 설문 응답 엑셀 전용 선택 설정. 규칙은 attendance와 같다.
+    val form: Provider = Provider("", ""),
     val connectTimeout: Duration = Duration.ofSeconds(3),
     val readTimeout: Duration = Duration.ofSeconds(10),
 ) {
@@ -37,8 +39,10 @@ data class ReportClientsProperties(
             require(provider.url.isNotBlank()) { "clients.$name.url이 비어 있습니다." }
             require(provider.internalToken.isNotBlank()) { "clients.$name.internal-token이 비어 있습니다." }
         }
-        require(attendance.url.isBlank() == attendance.internalToken.isBlank()) {
-            "clients.attendance.url과 internal-token은 둘 다 설정하거나 둘 다 비워야 합니다."
+        mapOf("attendance" to attendance, "form" to form).forEach { (name, provider) ->
+            require(provider.url.isBlank() == provider.internalToken.isBlank()) {
+                "clients.$name.url과 internal-token은 둘 다 설정하거나 둘 다 비워야 합니다."
+            }
         }
     }
 
@@ -70,6 +74,9 @@ class ReportClientsConfig(
 
     @Bean
     fun attendanceClient() = AttendanceClient(properties.attendance.takeIf { it.configured }?.let(::restClient))
+
+    @Bean
+    fun formClient() = FormClient(properties.form.takeIf { it.configured }?.let(::restClient))
 
     private fun restClient(provider: ReportClientsProperties.Provider) =
         reportRestClient(provider, properties.connectTimeout, properties.readTimeout, jsonMapper)
