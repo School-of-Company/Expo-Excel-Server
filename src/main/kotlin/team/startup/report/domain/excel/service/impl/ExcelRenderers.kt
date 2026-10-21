@@ -114,14 +114,33 @@ fun renderProgramParticipants(participants: List<ProgramParticipant>): SXSSFWork
         }
     val bodyStyle = workbook.createCellStyle().apply { thinBorders() }
 
-    sheet.writeRow(0, listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "학번", "서명", "비고"), headerStyle)
+    // 신청 열은 신청 관리 다운로드에서만 붙인다. 폼 답변 열은 문항이 바뀐 신청이 섞여도 어긋나지 않게 전체 신청의 제목 합집합이다.
+    val extended = participants.any { it.application != null }
+    val answerKeys =
+        participants.flatMapTo(LinkedHashSet()) {
+            it.application
+                ?.answers
+                ?.keys
+                .orEmpty()
+        }
+    val extraHeaders = if (extended) listOf("소속", "직업", "신청 경로", "신청 시각") + answerKeys else emptyList()
+    sheet.writeRow(0, (listOf("순위", "이름", "전화번호", "개인정보 동의 여부") + extraHeaders + listOf("학번", "서명", "비고")).map(::safe), headerStyle)
     participants.forEachIndexed { index, participant ->
         val row = sheet.createRow(index + 1)
         row.createCell(0).apply {
             setCellValue((index + 1).toDouble())
             cellStyle = bodyStyle
         }
-        listOf(participant.name, participant.phoneNumber, consent(participant.personalInformationStatus), "", "", "")
+        val extra =
+            if (!extended) {
+                emptyList()
+            } else {
+                val application = participant.application
+                listOf(application?.affiliation, application?.occupation, application?.admissionRoute, application?.appliedAt)
+                    .plus(answerKeys.map { application?.answers?.get(it) })
+                    .map { it?.let(::safe) }
+            }
+        (listOf(participant.name, participant.phoneNumber, consent(participant.personalInformationStatus)) + extra + listOf("", "", ""))
             .forEachIndexed { offset, value ->
                 row.createCell(offset + 1).apply {
                     setCellValue(value)
