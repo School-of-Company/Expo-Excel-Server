@@ -33,7 +33,7 @@ enum class TrainingCategory { ESSENTIAL, CHOICE }
 
 /**
  * ReportSource 응답 DTO. 엑셀 한 행의 원천 데이터. 동적 답변(information, surveyAnswer)은 키가 문항 제목이고 순서가 보존된 맵이다.
- * 공급자 답변은 [informationAnswers]·[surveyAnswers]로 제출 당시 문항 스냅샷 기준의 제목·표시 문자열로 바꿔 넣는다.
+ * 공급자 답변은 [informationAnswers]·[idKeyedAnswers]로 제출 당시 문항 스냅샷 기준의 제목·표시 문자열로 바꿔 넣는다.
  */
 data class StandardParticipant(
     val name: String?,
@@ -76,7 +76,7 @@ data class ProgramParticipant(
     val application: ProgramApplicationColumns? = null,
 )
 
-/** 회차 신청 열(Report #76). [answers]는 [informationAnswers]로 바꾼 제출 당시 폼 답변이다. */
+/** 회차 신청 열(Report #76). [answers]는 [idKeyedAnswers]로 바꾼 제출 당시 폼 답변(문항 ID 키)이다. */
 data class ProgramApplicationColumns(
     val affiliation: String?,
     val occupation: String?,

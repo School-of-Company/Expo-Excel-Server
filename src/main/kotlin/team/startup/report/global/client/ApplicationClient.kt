@@ -1,7 +1,5 @@
 package team.startup.report.global.client
 
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonUnwrapped
 import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
@@ -23,22 +21,46 @@ class ApplicationClient(
             .body(mapOf("applicationIds" to applicationIds))
             .targetResponse()
 
-    /** [q]는 Application이 User 이름·전화번호 부분 일치로 참가자 후보를 좁히는 내부 조건이다. 관리자 필터로는 받지 않는다. */
     fun createTargetSnapshot(
         expoId: UUID,
         filter: ApplicationFilter,
-        q: String? = null,
     ): ApplicationSnapshot =
         http
             .post()
             .uri(TARGET_PATH, expoId)
-            .body(mapOf("filter" to SnapshotFilter(filter, q), "limit" to 500))
+            .body(mapOf("filter" to filter, "limit" to 500))
             .targetResponse(snapshotCreation = true)
 
     fun nextTargetSnapshot(
         expoId: UUID,
         cursor: String,
     ): ApplicationSnapshot = http.get().uri { it.path(TARGET_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse()
+
+    fun selectedPreregistrations(
+        expoId: UUID,
+        keys: List<String>,
+    ): PreregistrationSelection =
+        http
+            .post()
+            .uri(PREREGISTRATION_PATH + "/selection", expoId)
+            .body(mapOf("keys" to keys))
+            .targetResponse()
+
+    fun createPreregistrationSnapshot(
+        expoId: UUID,
+        filter: RegistrationFilter,
+    ): PreregistrationSnapshot =
+        http
+            .post()
+            .uri(PREREGISTRATION_PATH, expoId)
+            .body(mapOf("filter" to filter, "limit" to 500))
+            .targetResponse(snapshotCreation = true)
+
+    fun nextPreregistrationSnapshot(
+        expoId: UUID,
+        cursor: String,
+    ): PreregistrationSnapshot =
+        http.get().uri { it.path(PREREGISTRATION_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse()
 
     private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(snapshotCreation: Boolean = false): T =
         try {
@@ -54,7 +76,7 @@ class ApplicationClient(
 
                     413 -> HttpStatus.PAYLOAD_TOO_LARGE
 
-                    // Application 스냅샷 생성의 10,000건 상한은 422이며 Report 계약은 413이다.
+                    // 스냅샷 생성 상한(프로그램 10,000건, 사전등록 10,000행)은 422이며 Report 계약은 413이다.
                     422 -> if (snapshotCreation) HttpStatus.PAYLOAD_TOO_LARGE else HttpStatus.BAD_GATEWAY
 
                     else -> HttpStatus.BAD_GATEWAY
@@ -79,13 +101,9 @@ class ApplicationClient(
         const val NAME = "Application"
         const val MAX_TRAINEE_IDS = 500
         private const val TARGET_PATH = "/internal/expos/{expoId}/program-session-applications/report-targets"
+        private const val PREREGISTRATION_PATH = "/internal/expos/{expoId}/preregistrations/report-targets"
     }
 }
-
-private data class SnapshotFilter(
-    @get:JsonUnwrapped val filter: ApplicationFilter,
-    @get:JsonInclude(JsonInclude.Include.NON_NULL) val q: String?,
-)
 
 data class StandardApplication(
     val applicationId: Long,

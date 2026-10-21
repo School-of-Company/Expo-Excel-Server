@@ -2,6 +2,7 @@ package team.startup.report.domain.excel.service.impl
 
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.web.util.UriUtils
 import team.startup.report.domain.excel.presentation.DownloadRequest
 import team.startup.report.domain.excel.presentation.DownloadScope
 import team.startup.report.domain.excel.presentation.ExcelTemplate
@@ -14,8 +15,8 @@ import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
 import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
+import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.domain.excel.service.informationAnswers
-import team.startup.report.domain.excel.service.surveyAnswers
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.ApplicationFilter
 import team.startup.report.global.client.ApplicationRow
@@ -34,6 +35,7 @@ import java.util.UUID
 // 신청 경로(Application admission_route)와 신청 시각(KST) 표기
 private val ADMISSION_ROUTE_LABELS = mapOf("PRE_REGISTRATION" to "사전", "ONSITE" to "현장")
 private val APPLIED_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
+private val LEDGER_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").withZone(ZoneId.of("Asia/Seoul"))
 
 @Service
 class ExcelDownloadService(
@@ -45,9 +47,11 @@ class ExcelDownloadService(
         expoId: UUID,
         request: DownloadRequest,
     ): ExcelFile {
-        validate(request)
+        val registrationLedger = request.template == ExcelTemplate.REGISTRATION_LEDGER
+        if (registrationLedger) registration.validate(request) else validate(request)
         return try {
             if (expo.expo(expoId.toString()) == null) throw ExpectedException(HttpStatus.NOT_FOUND, "박람회를 찾을 수 없습니다.")
+            if (registrationLedger) return registration.render(expoId, request)
             val rows =
                 targets(expoId, request).map { it.application }.let { rows ->
                     if (request.scope == DownloadScope.FILTER && request.template == ExcelTemplate.ATTENDANCE) {
@@ -65,7 +69,11 @@ class ExcelDownloadService(
         }
     }
 
+    // 사전등록 원장은 별도 원천(Application #284)이라 따로 둔다. 같은 공급자 클라이언트와 실패 규칙을 쓴다
+    private val registration = RegistrationLedger(application) { expoId -> readAll { user.standardParticipantPage(expoId, it) } }
+
     private fun validate(request: DownloadRequest) {
+        valid(request.keys == null && request.registrationFilter == null, "접수대장 key와 등록 필터는 등록 원장에만 사용할 수 있습니다.")
         when (request.scope) {
             DownloadScope.SELECTED -> {
                 val ids = request.applicationIds
@@ -81,6 +89,10 @@ class ExcelDownloadService(
             valid(it.programId == null || (it.programId > 0 && it.programType != null), "회차 필터에는 유형과 양수 ID가 필요합니다.")
             valid(it.search == null || (it.search.isNotBlank() && it.search.length <= 200), "검색어는 1–200자여야 합니다.")
             valid(it.from == null || it.until == null || it.from < it.until, "시작일은 종료일보다 앞서야 합니다.")
+            valid(it.status == null || (it.status.isNotEmpty() && it.status.distinct().size == it.status.size), "상태는 중복 없이 1개 이상이어야 합니다.")
+            valid(it.q == null || (it.q.isNotBlank() && it.q.length <= 50), "참가자 검색어는 1–50자여야 합니다.")
+            valid(it.occupation == null || it.occupation in PARTICIPANT_TYPE_LABELS, "알 수 없는 직업입니다.")
+            valid(request.template != ExcelTemplate.ATTENDANCE || it.q == null, "개인 출석부에는 참가자 검색어를 지정할 수 없습니다.")
         }
         valid((request.template == ExcelTemplate.PROGRAM) == (request.programId != null), "프로그램 양식에만 회차 ID를 지정해야 합니다.")
         valid((request.template == ExcelTemplate.ATTENDANCE) == (request.traineeId != null), "개인 출석부에만 연수자 ID를 지정해야 합니다.")
@@ -109,7 +121,9 @@ class ExcelDownloadService(
                     val result = application.selectedTargets(expoId, ids)
                     check(result.totalElements == ids.size && result.items.size == ids.size)
                     check(result.items.map { it.application.applicationId }.toSet() == ids.toSet())
-                    result.items
+                    // 원장은 관리자가 고른 순서로 출력한다. 사람 명단은 render에서 자체 순서로 다시 정렬한다
+                    val order = ids.withIndex().associate { (index, id) -> id to index }
+                    result.items.sortedBy { order.getValue(it.application.applicationId) }
                 }
 
                 DownloadScope.FILTER -> {
@@ -120,8 +134,8 @@ class ExcelDownloadService(
                         } else {
                             supplied
                         }
-                    val q = if (request.template == ExcelTemplate.ATTENDANCE) participantName(expoId, request.traineeId!!) else null
-                    val initial = application.createTargetSnapshot(expoId, filter, q)
+                    val q = if (request.template == ExcelTemplate.ATTENDANCE) participantName(expoId, request.traineeId!!) else filter.q
+                    val initial = application.createTargetSnapshot(expoId, filter.copy(q = q))
                     check(initial.totalElements >= 0)
                     if (initial.totalElements >
                         10_000
@@ -190,7 +204,14 @@ class ExcelDownloadService(
             (filter.programId == null || filter.programId == row.programId) &&
             (filter.groupId == null || filter.groupId == row.groupId) &&
             (filter.applicationId == null || filter.applicationId == row.applicationId) &&
-            (filter.status == null || filter.status == row.status) &&
+            (filter.status == null || row.status in filter.status) &&
+            // q·occupation은 User 원천 조건이라 여기서 다시 확인할 수 없다. eventDate는 신청 당시 운영 시작일이다
+            (
+                filter.eventDate == null || row.definition
+                    .path("startedAt")
+                    .asString("")
+                    .take(10) == filter.eventDate.toString()
+            ) &&
             (filter.from == null || row.createdAt >= filter.from) &&
             (filter.until == null || row.createdAt < filter.until) &&
             (
@@ -244,7 +265,7 @@ class ExcelDownloadService(
                             it.personalInformationStatus,
                             it.applicationType,
                             existingAnswers(registration, byParticipant.getValue(it.participantId)),
-                            it.surveyAnswer?.let { survey -> surveyAnswers(survey.answers, survey.questions).values } ?: emptyMap(),
+                            it.surveyAnswer?.let { survey -> idKeyedAnswers(survey.answers, survey.questions).values } ?: emptyMap(),
                         )
                     }
                 ExcelFile("attachment; filename*=UTF-8''Participant_Information.xlsx", renderStandardParticipants(result))
@@ -270,7 +291,7 @@ class ExcelDownloadService(
                                     occupation = person.occupation?.let { PARTICIPANT_TYPE_LABELS[it] ?: it },
                                     admissionRoute = row.admissionRoute?.let { ADMISSION_ROUTE_LABELS[it] ?: it },
                                     appliedAt = APPLIED_AT.format(row.createdAt),
-                                    answers = informationAnswers(row.answers, row.questions).values,
+                                    answers = idKeyedAnswers(row.answers, row.questions).values,
                                 ),
                             )
                         },
@@ -300,6 +321,15 @@ class ExcelDownloadService(
                         )
                     }
                 ExcelFile("attachment; filename=\"Trainee_Information.xlsx\"", renderTrainees(result))
+            }
+
+            ExcelTemplate.APPLICATION_LEDGER -> {
+                applicationLedger(expoId, request, rows)
+            }
+
+            // execute에서 원천 조회 전에 RegistrationLedger로 보낸다
+            ExcelTemplate.REGISTRATION_LEDGER -> {
+                error("등록 원장은 신청 대상 경로로 만들지 않는다")
             }
 
             ExcelTemplate.ATTENDANCE -> {
@@ -345,7 +375,7 @@ class ExcelDownloadService(
         rows: List<ApplicationRow>,
         keys: Set<String> = registration.keys,
     ): Map<String, String?> {
-        val answers = rows.map { informationAnswers(it.answers, it.questions).values }
+        val answers = rows.map { idKeyedAnswers(it.answers, it.questions).values }
         val result = registration.toMutableMap()
         for (key in keys - setOf("이름", "전화번호", "연수원아이디")) {
             if (result[key] != null) continue
@@ -371,6 +401,38 @@ class ExcelDownloadService(
                 check(it.endDateTime > it.startDateTime)
             }
         }
+
+    private fun applicationLedger(
+        expoId: String,
+        request: DownloadRequest,
+        rows: List<ApplicationRow>,
+    ): ExcelFile {
+        val ids = rows.map { it.participantId }.toSet()
+        val people = readAll { user.standardParticipantPage(expoId, it) }.filter { it.participantId in ids }
+        check(people.map { it.participantId }.toSet() == ids && people.size == ids.size)
+        val traineeIds = rows.mapNotNullTo(HashSet()) { it.traineeId }
+        val trainees =
+            if (traineeIds.isEmpty()) emptyList() else readAll { user.traineePage(expoId, it) }.filter { it.traineeId in traineeIds }
+        check(trainees.map { it.traineeId }.toSet() == traineeIds && trainees.size == traineeIds.size)
+        // 이름·연락처·이력·접수번호가 빠진 원천은 정상 미응답처럼 보이므로 부분 파일을 만들지 않는다
+        check(rows.all { it.receiptNumber != null && it.history != null })
+        check(
+            trainees.all { trainee ->
+                rows.filter { it.traineeId == trainee.traineeId }.all { it.participantId == trainee.participantId }
+            },
+        )
+        val timestamp = Instant.now()
+        val filename = UriUtils.encode("신청원장_${LEDGER_TIMESTAMP.format(timestamp)}.xlsx", Charsets.UTF_8)
+        return ExcelFile(
+            "attachment; filename*=UTF-8''$filename",
+            renderApplicationLedger(
+                rows,
+                people.associateBy { it.participantId },
+                trainees.associateBy { it.traineeId },
+                LedgerMeta(timestamp, expoId, request.scope.name, request.filter, request.applicationIds?.size),
+            ),
+        )
+    }
 
     internal fun <T> readAll(fetch: (Long?) -> DetailPage<T>): List<T> {
         val items = mutableListOf<T>()
