@@ -6,7 +6,8 @@ import team.startup.report.global.client.ApplicationFilter
 import tools.jackson.databind.JsonNode
 import java.util.UUID
 
-enum class ExcelTemplate { STANDARD, TRAINEE, PROGRAM, ATTENDANCE }
+// APPLICATION_LEDGER는 프로그램·연수 신청 1건 = 1행 원장이다(Report #80). 나머지는 기존 사람 명단·인쇄 양식이다
+enum class ExcelTemplate { STANDARD, TRAINEE, PROGRAM, ATTENDANCE, APPLICATION_LEDGER }
 
 enum class DownloadScope { SELECTED, FILTER }
 
