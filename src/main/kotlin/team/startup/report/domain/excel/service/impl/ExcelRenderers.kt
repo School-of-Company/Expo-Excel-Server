@@ -38,13 +38,8 @@ fun renderStandardParticipants(participants: List<StandardParticipant>): SXSSFWo
     val bodyStyle = workbook.createCellStyle().apply { thinBorders() }
 
     val answers = participants.map { it.information.oneLine() to it.surveyAnswer.oneLine() }
-    // v1: 신청 폼 열은 첫 참가자의 키만, 설문 열은 전체 참가자 키의 합집합
-    val infoKeys =
-        answers
-            .firstOrNull()
-            ?.first
-            ?.keys
-            .orEmpty()
+    // 신청 폼·설문 열 모두 전체 참가자 키의 합집합이다. v1은 신청 폼 열을 첫 참가자 키로만 만들어 뒤 참가자 전용 답변이 빠졌다.
+    val infoKeys = answers.flatMapTo(LinkedHashSet()) { it.first.keys }
     val surveyKeys = answers.flatMapTo(LinkedHashSet()) { it.second.keys }
 
     sheet.writeRow(0, listOf("이름", "전화번호", "개인정보 동의 여부", "신청 방식") + infoKeys + surveyKeys, headerStyle)
@@ -404,7 +399,13 @@ internal fun Sheet.writeRow(
     }
 }
 
-private fun consent(status: Boolean?) = if (status == true) "동의" else "미동의"
+// null은 동의 여부가 저장되지 않은 것이라 명시적 거절(false)과 구분한다
+private fun consent(status: Boolean?) =
+    when (status) {
+        true -> "동의"
+        false -> "미동의"
+        null -> "미기록"
+    }
 
 private val LINE_BREAK = Regex("\r?\n")
 
