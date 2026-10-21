@@ -10,9 +10,9 @@ import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
 import team.startup.report.domain.excel.service.TrainingProgram
+import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.domain.excel.service.informationAnswers
 import team.startup.report.domain.excel.service.standardInformation
-import team.startup.report.domain.excel.service.surveyAnswers
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.DetailPage
 import team.startup.report.global.client.ExpoClient
@@ -50,7 +50,7 @@ class HttpReportSource(
                     applicationType = it.applicationType,
                     information = unresolved.add(it.registration(byId)),
                     surveyAnswer =
-                        it.surveyAnswer?.let { survey -> unresolved.add(surveyAnswers(survey.answers, survey.questions)) } ?: emptyMap(),
+                        it.surveyAnswer?.let { survey -> unresolved.add(idKeyedAnswers(survey.answers, survey.questions)) } ?: emptyMap(),
                 )
             }.also { unresolved.report("standard", expoId) }
     }

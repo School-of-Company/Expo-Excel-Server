@@ -15,8 +15,8 @@ import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
 import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
+import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.domain.excel.service.informationAnswers
-import team.startup.report.domain.excel.service.surveyAnswers
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.ApplicationFilter
 import team.startup.report.global.client.ApplicationRow
@@ -265,7 +265,7 @@ class ExcelDownloadService(
                             it.personalInformationStatus,
                             it.applicationType,
                             existingAnswers(registration, byParticipant.getValue(it.participantId)),
-                            it.surveyAnswer?.let { survey -> surveyAnswers(survey.answers, survey.questions).values } ?: emptyMap(),
+                            it.surveyAnswer?.let { survey -> idKeyedAnswers(survey.answers, survey.questions).values } ?: emptyMap(),
                         )
                     }
                 ExcelFile("attachment; filename*=UTF-8''Participant_Information.xlsx", renderStandardParticipants(result))
@@ -291,7 +291,7 @@ class ExcelDownloadService(
                                     occupation = person.occupation?.let { PARTICIPANT_TYPE_LABELS[it] ?: it },
                                     admissionRoute = row.admissionRoute?.let { ADMISSION_ROUTE_LABELS[it] ?: it },
                                     appliedAt = APPLIED_AT.format(row.createdAt),
-                                    answers = informationAnswers(row.answers, row.questions).values,
+                                    answers = idKeyedAnswers(row.answers, row.questions).values,
                                 ),
                             )
                         },
@@ -375,7 +375,7 @@ class ExcelDownloadService(
         rows: List<ApplicationRow>,
         keys: Set<String> = registration.keys,
     ): Map<String, String?> {
-        val answers = rows.map { informationAnswers(it.answers, it.questions).values }
+        val answers = rows.map { idKeyedAnswers(it.answers, it.questions).values }
         val result = registration.toMutableMap()
         for (key in keys - setOf("이름", "전화번호", "연수원아이디")) {
             if (result[key] != null) continue
