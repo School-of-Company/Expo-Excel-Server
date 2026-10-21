@@ -200,7 +200,7 @@ internal fun StandardParticipantDetail.registration(all: Map<Long, StandardParti
     )
 }
 
-private fun JsonNode?.requiredText(): String? {
+internal fun JsonNode?.requiredText(): String? {
     check(this != null && (isNull || isString)) { "${UserClient.NAME} 서비스 응답 형식 오류" }
     return if (isNull) null else stringValue()
 }
