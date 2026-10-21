@@ -35,6 +35,21 @@ class AttendanceClient(
             }.fetchOrNull(NAME)
     }
 
+    /**
+     * 프로그램 한 회차의 실제 출석(Attendance #194). 일반은 참가자 ID, 연수는 연수자 ID로 온다. 미출석자는 목록에 없고 출석 0명은 빈 목록이다.
+     * 공급자 실패는 빈 목록으로 바꾸지 않고 예외다.
+     */
+    fun programAttendances(
+        programType: SessionType,
+        programId: Long,
+    ): List<ProgramAttendanceRecord> {
+        val client = http ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "출석 서비스 연결이 설정되지 않았습니다.")
+        return client
+            .get()
+            .uri("/internal/program-attendances/{type}/{programId}", programType.name.lowercase(), programId)
+            .fetchRequired(NAME)
+    }
+
     companion object {
         const val NAME = "Attendance"
 
@@ -70,4 +85,16 @@ data class EntryRecordPage(
     val totalElements: Long,
     val records: List<EntryRecord>,
     val walkIn: List<WalkInCount> = emptyList(),
+)
+
+/**
+ * 회차 실제 출석 한 건. [attendanceDate]는 첫 입실 스캔의 실제 날짜이고 없으면(#194 이전 공급자) 읽기에 실패한다.
+ * 퇴실 시각(leaveTime)은 받지 않는다: 퇴실·이수 결과를 출력하지 않는다.
+ */
+data class ProgramAttendanceRecord(
+    val participantId: Long? = null,
+    val traineeId: Long? = null,
+    val attendanceDate: LocalDate,
+    // "HH:mm"
+    val entryTime: String,
 )

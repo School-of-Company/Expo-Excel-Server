@@ -100,26 +100,27 @@ class ExcelDownloadTests {
 
     @Test
     fun `프로그램 명단은 소속·직업·신청 경로·신청 시각과 문항 제목별 폼 답변 열을 붙인다`() {
+        val school = mapOf("id" to 1, "title" to "학교", "formType" to "SENTENCE", "order" to 1)
         val questions =
             listOf(
                 mapOf(
-                    "id" to "q2",
+                    "id" to 2,
                     "title" to "학년",
                     "formType" to "DROPDOWN",
                     "order" to 2,
                     "jsonData" to mapOf("0" to "1학년", "1" to "2학년"),
                 ),
-                mapOf("id" to "q1", "title" to "학교", "formType" to "SENTENCE", "order" to 1),
+                school,
             )
         select(
             listOf(
-                target(FIRST, answers = mapOf("학년" to "1", "학교" to "광주초"), questions = questions, route = "ONSITE"),
+                target(FIRST, answers = mapOf("2" to "1", "1" to "광주초"), questions = questions, route = "ONSITE"),
                 // 문항이 바뀐 신청: 학년 문항이 없고 새 문항이 있다
                 target(
                     SECOND,
                     participant = 2,
-                    answers = mapOf("보호자 연락처" to "010-guardian", "학교" to "전남중"),
-                    questions = listOf(mapOf("id" to "q3", "title" to "보호자 연락처", "formType" to "SENTENCE", "order" to 1)),
+                    answers = mapOf("3" to "010-guardian", "1" to "전남중"),
+                    questions = listOf(mapOf("id" to 3, "title" to "보호자 연락처", "formType" to "SENTENCE", "order" to 0), school),
                     route = "PRE_REGISTRATION",
                 ),
             ),
@@ -146,6 +147,64 @@ class ExcelDownloadTests {
                 listOf("1.0", "참가자", "010", "동의", "등록초", "초등학생", "현장", "2026-01-01 09:00:00", "광주초", "2학년", null, "", "", ""),
                 listOf("2.0", "참가자", "010", "동의", null, null, "사전", "2026-01-01 09:00:00", "전남중", null, "010-guardian", "", "", ""),
             )
+    }
+
+    @Test
+    fun `개발 서버 골든벨 형태의 문항 ID 답변을 제출 당시 제목과 보기 문구로 출력한다`() {
+        // 실제 dev 원천 모양: order 없는 배열, 숫자 ID, DROPDOWN 보기 키, CHECKBOX boolean. 수정 전에는 319/320/321과 4가 그대로 나왔다
+        val questions =
+            listOf(
+                mapOf(
+                    "id" to 319,
+                    "title" to "초등학교 학년",
+                    "formType" to "DROPDOWN",
+                    "dynamicFormType" to "DEFAULT",
+                    "requiredStatus" to true,
+                    "jsonData" to (1..6).associate { "$it" to "${it}학년" },
+                    "otherJson" to null,
+                ),
+                mapOf(
+                    "id" to 320,
+                    "title" to "참가 학교",
+                    "formType" to "SENTENCE",
+                    "jsonData" to emptyMap<String, Any>(),
+                    "otherJson" to null,
+                ),
+                mapOf(
+                    "id" to 321,
+                    "title" to "확인했습니다",
+                    "formType" to "CHECKBOX",
+                    "jsonData" to emptyMap<String, Any>(),
+                    "otherJson" to null,
+                ),
+            )
+        select(
+            listOf(
+                target(
+                    FIRST,
+                    answers = mapOf("319" to "4", "320" to "QA초등학교", "321" to true),
+                    questions = questions,
+                    route = "PRE_REGISTRATION",
+                ),
+                target(
+                    SECOND,
+                    participant = 2,
+                    answers = mapOf("319" to "4", "320" to null, "321" to false),
+                    questions = questions,
+                    route = "ONSITE",
+                ),
+                target(UUID(0, 3), participant = 3, answers = mapOf("319" to "4"), questions = questions, route = "ONSITE"),
+            ),
+        )
+        expo.on("GET /internal/expo/$EVENT/standard-programs/7", body = mapOf("id" to 7))
+        user.on(
+            "GET /internal/expos/$EVENT/standard-participants/details?size=500",
+            body = mapOf("items" to listOf(person(1), person(2), person(3)), "nextCursor" to null),
+        )
+        val rows = sheet(send(selected("PROGRAM", listOf(FIRST, SECOND, UUID(0, 3))) + ("programId" to 7)))
+        rows[0].subList(8, 11) shouldBe listOf("초등학교 학년", "참가 학교", "확인했습니다")
+        rows.drop(1).map { it.subList(8, 11) } shouldBe
+            listOf(listOf("4학년", "QA초등학교", "true"), listOf("4학년", null, "false"), listOf("4학년", null, null))
     }
 
     @Test
@@ -462,8 +521,13 @@ class ExcelDownloadTests {
         type: String = "STANDARD",
         program: Long = 7,
         status: String = "CONFIRMED",
-        answers: Map<String, Any?> = mapOf("학교명" to "프로그램학교", "새열" to "추가 금지"),
-        questions: List<Any> = emptyList(),
+        // 프로그램 답변은 Application ProgramFormAdapter가 검증한 문항 ID 키다
+        answers: Map<String, Any?> = mapOf("501" to "프로그램학교", "502" to "추가 금지"),
+        questions: List<Any> =
+            listOf(
+                mapOf("id" to 501, "title" to "학교명", "formType" to "SENTENCE"),
+                mapOf("id" to 502, "title" to "새열", "formType" to "SENTENCE"),
+            ),
         route: String? = null,
     ): Map<String, Any> =
         mapOf(

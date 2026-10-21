@@ -55,7 +55,7 @@ class MappedAnswersTests :
         "설문: 제출 당시 스냅샷으로 ID를 제목에, 선택지 키를 보기 문구로 바꾸고 order 순서를 지킨다" {
             // JSONB는 키 순서를 보존하지 않는다
             val mapped =
-                surveyAnswers(
+                idKeyedAnswers(
                     json("""{"13": "좋았어요, \"정말\"", "12": ["2", "1"], "11": true, "10": "1"}"""),
                     SURVEY_QUESTIONS,
                 )
@@ -66,20 +66,20 @@ class MappedAnswersTests :
         }
 
         "설문: null 답변은 열을 남기고 값만 비우며, CHECKBOX false는 \"false\"" {
-            val mapped = surveyAnswers(json("""{"10": null, "11": false}"""), SURVEY_QUESTIONS)
+            val mapped = idKeyedAnswers(json("""{"10": null, "11": false}"""), SURVEY_QUESTIONS)
 
             mapped.values shouldBe mapOf("만족도" to null, "재참가 의향" to "false")
             mapped.unresolved shouldBe 0
         }
 
         "설문: 스냅샷에 없는 문항 ID는 열을 만들지 않고, 모르는 선택지 키는 저장값 그대로 두며 둘 다 센다" {
-            val mapped = surveyAnswers(json("""{"10": "9", "12": ["1", "7"], "99": "x"}"""), SURVEY_QUESTIONS)
+            val mapped = idKeyedAnswers(json("""{"10": "9", "12": ["1", "7"], "99": "x"}"""), SURVEY_QUESTIONS)
 
             mapped.values shouldBe mapOf("만족도" to "9", "관심 분야" to "AI, 7")
             mapped.unresolved shouldBe 3
         }
 
-        "설문: 같은 제목이면 order가 앞선 문항만 쓰고 나머지 답은 센다" {
+        "ID 키: 같은 제목의 뒤 문항은 버리지 않고 문항 ID를 붙인 열로 두며, 제목 없는 문항만 센다" {
             val questions =
                 json(
                     """
@@ -90,15 +90,35 @@ class MappedAnswersTests :
                     ]
                     """,
                 )
-            val mapped = surveyAnswers(json("""{"1": "첫째", "2": "둘째", "3": "제목 없음"}"""), questions)
+            val mapped = idKeyedAnswers(json("""{"1": "첫째", "2": "둘째", "3": "제목 없음"}"""), questions)
 
-            mapped.values shouldBe mapOf("의견" to "첫째")
-            mapped.unresolved shouldBe 2
+            mapped.values shouldBe mapOf("의견" to "첫째", "의견 (문항 2)" to "둘째")
+            mapped.unresolved shouldBe 1
+        }
+
+        "ID 키: Application 프로그램 스냅샷(order 없음)은 배열 순서로 제목·보기 문구를 복원하고 제목 키 답변으로 해석하지 않는다" {
+            val questions =
+                json(
+                    """
+                    [
+                      {"id": 319, "title": "초등학교 학년", "formType": "DROPDOWN", "dynamicFormType": "DEFAULT", "requiredStatus": true,
+                       "jsonData": {"3": "3학년", "4": "4학년"}, "otherJson": null},
+                      {"id": 320, "title": "참가 학교", "formType": "SENTENCE", "jsonData": {}, "otherJson": null},
+                      {"id": 321, "title": "확인", "formType": "CHECKBOX", "jsonData": {}, "otherJson": null}
+                    ]
+                    """,
+                )
+            val answers = json("""{"321": true, "320": "QA초등학교", "319": "4"}""")
+
+            idKeyedAnswers(answers, questions) shouldBe
+                MappedAnswers(mapOf("초등학교 학년" to "4학년", "참가 학교" to "QA초등학교", "확인" to "true"), 0)
+            // 등록(제목 키) 해석기를 쓰면 문항 ID가 열 제목이 된다(dev 실파일에서 관측된 결함)
+            informationAnswers(answers, questions).values.keys shouldBe setOf("321", "320", "319")
         }
 
         "설문: 스냅샷이 없으면(questions=null) 제목을 만들지 않고 답변 수를 센다" {
-            surveyAnswers(json("""{"10": "1", "11": true}"""), null) shouldBe MappedAnswers(emptyMap(), 2)
-            surveyAnswers(json("""{"10": "1"}"""), json("{}")) shouldBe MappedAnswers(emptyMap(), 1)
+            idKeyedAnswers(json("""{"10": "1", "11": true}"""), null) shouldBe MappedAnswers(emptyMap(), 2)
+            idKeyedAnswers(json("""{"10": "1"}"""), json("{}")) shouldBe MappedAnswers(emptyMap(), 1)
         }
 
         "신청 폼: 제목 키를 스냅샷 order로 정렬하고 스냅샷에 없는 제목은 뒤에 그대로 둔다" {
@@ -149,7 +169,7 @@ class MappedAnswersTests :
 
         "일반 참가자 값 맵과 연수자 문자열 맵이 기존 렌더러 열 계약으로 그대로 들어간다" {
             val info = informationAnswers(json("""{"학교명": "가초", "과목": ["국어", "수학"]}"""), null).values
-            val survey = surveyAnswers(json("""{"12": ["1"], "10": "2"}"""), SURVEY_QUESTIONS).values
+            val survey = idKeyedAnswers(json("""{"12": ["1"], "10": "2"}"""), SURVEY_QUESTIONS).values
 
             val standard =
                 rows(renderStandardParticipants(listOf(StandardParticipant("홍길동", "010", true, ApplicationType.PRE, info, survey))))

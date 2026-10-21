@@ -56,6 +56,19 @@ class ExpoClient(
     ): StandardProgramSummary? =
         http.get().uri("/internal/expo/{expoId}/standard-programs/{programId}", expoId, programId).fetchOrNull(NAME)
 
+    /** 없거나 다른 행사 소속이면 null(공급자 404) */
+    fun trainingProgram(
+        expoId: String,
+        programId: Long,
+    ): TrainingProgramSummary? =
+        http
+            .post()
+            .uri("/internal/expo/{expoId}/training-programs/batch", expoId)
+            .body(mapOf("programIds" to listOf(programId)))
+            .fetchOrNull<List<TrainingProgramSummary>>(NAME)
+            ?.single()
+            ?.also { check(it.id == programId) { "$NAME 서비스 대상 오류" } }
+
     /** 하나라도 없거나 다른 행사 소속이면 공급자가 404로 거절하고, 여기서는 실패다. */
     fun trainingPrograms(
         expoId: String,
@@ -83,6 +96,10 @@ data class ExpoSummary(
 
 data class StandardProgramSummary(
     val id: Long,
+    val title: String? = null,
+    // ISO 지역 일시. 일정이 없는 회차는 null
+    val startedAt: String? = null,
+    val endedAt: String? = null,
 )
 
 data class TrainingProgramSummary(

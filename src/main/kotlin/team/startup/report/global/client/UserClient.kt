@@ -110,6 +110,8 @@ data class StandardParticipantDetail(
     val participantId: Long,
     val name: String?,
     val phoneNumber: String?,
+    // 문자 수신 번호. 본인 번호가 없는 동행자는 대표자 번호, 둘 다 없으면 null이다. 본인 전화번호 열에 쓰지 않는다
+    val notificationPhoneNumber: String? = null,
     val personalInformationStatus: Boolean?,
     val applicationType: ApplicationType,
     val information: InformationResDto,

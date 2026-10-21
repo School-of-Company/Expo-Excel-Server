@@ -63,19 +63,19 @@ class ExcelRenderersTests :
                     ),
                 ).getSheet("박람회 참가자 정보")
 
-            // 신청 폼 열은 첫 참가자 키만(추가 제외), 설문 열은 합집합
+            // 신청 폼·설문 열 모두 합집합(뒤 참가자 전용 '추가' 포함). 동의 null은 미기록, false만 미동의
             sheet.values() shouldBe
                 listOf(
-                    listOf("이름", "전화번호", "개인정보 동의 여부", "신청 방식", "학교명", "학년", "만족도", "의견"),
-                    listOf("홍길동", "01011112222", "동의", "사전 등록", "가초", "3", "5", ""),
-                    listOf("김철수", null, "미동의", "현장 등록", "나초", "", "", ""),
-                    listOf("이영희", "0103", "미동의", "사전 등록", "", "", "", "[a, b]"),
+                    listOf("이름", "전화번호", "개인정보 동의 여부", "신청 방식", "학교명", "학년", "추가", "만족도", "의견"),
+                    listOf("홍길동", "01011112222", "동의", "사전 등록", "가초", "3", "", "5", ""),
+                    listOf("김철수", null, "미기록", "현장 등록", "나초", "", "x", "", ""),
+                    listOf("이영희", "0103", "미동의", "사전 등록", "", "", "", "", "[a, b]"),
                 )
             sheet.defaultColumnWidth shouldBe 20
             sheet.cell(0, 0).assertDarkHeader()
             sheet.cell(2, 1).cellType shouldBe CellType.BLANK
-            sheet.cell(1, 7).cellStyle.assertThinBorders()
-            sheet.cell(1, 7).cellStyle.fillPattern shouldBe FillPatternType.NO_FILL
+            sheet.cell(1, 8).cellStyle.assertThinBorders()
+            sheet.cell(1, 8).cellStyle.fillPattern shouldBe FillPatternType.NO_FILL
         }
 
         "일반 참가자: v1 sanitizeJson처럼 동적 열 제목·값의 줄바꿈(CRLF·LF)은 공백 하나, 고정 열은 그대로" {

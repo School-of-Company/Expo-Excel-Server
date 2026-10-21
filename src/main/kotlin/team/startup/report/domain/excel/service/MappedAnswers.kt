@@ -5,12 +5,12 @@ import tools.jackson.databind.JsonNode
 // User 공급자의 답변(answers)과 제출 당시 문항 스냅샷(questions)을 엑셀 렌더러 입력(문항 제목 → 표시 문자열)으로 바꾼다.
 // 기준: Expo-User-Server PR #49 InformationResDto, Expo-Form-Server PR #67 QuestionSnapshot.
 //
-// - 신청 폼 답변은 문항 제목, 설문 답변은 문항 ID가 키다. 제목은 현재 Form 정의가 아니라 제출 당시 스냅샷에서만 찾는다.
+// - 등록 신청 폼 답변은 문항 제목, 설문·프로그램 신청(Application) 답변은 문항 ID가 키다. 제목은 현재 Form 정의가 아니라 제출 당시 스냅샷에서만 찾는다.
 // - answers는 JSONB라 키 순서가 보존되지 않으므로 열 순서는 스냅샷 order를 따른다.
 // - v1 셀은 보기 문구 문자열이었다. DROPDOWN 키는 보기 문구, MULTIPLE 키 배열은 보기 문구를 ", "로 잇고(v1 클라이언트와 같은 구분자),
 //   CHECKBOX boolean은 "true"/"false", 그 밖의 값은 문자열 그대로다. null 답변은 null로 두어 렌더러가 ""로 쓴다.
 // - 제목이나 답변을 만들어 내지 않는다. 복원할 수 없는 답변은 [MappedAnswers.unresolved]로 셀 뿐 열을 추가하지 않는다:
-//   스냅샷이 없는 설문 답변, 스냅샷에 없는 문항 ID, 같은 제목의 뒤 문항(order가 앞선 문항만 쓴다), 스냅샷에 없는 선택지 키(저장값을 그대로 쓴다).
+//   스냅샷이 없는 ID 키 답변, 스냅샷에 없는 문항 ID, 제목 없는 문항, 제목 키 답변의 같은 제목 뒤 문항, 스냅샷에 없는 선택지 키(저장값을 그대로 쓴다).
 // - v1 파싱 결함(연수자 행에 배열이 있으면 폼 열 전체를 비움, 일반 참가자 값에 따옴표·탭·홀로 있는 CR이 있으면 행 전체를 비움)은 재현하지 않는다.
 
 /** [values]는 열 순서가 보존된 맵이다. [unresolved]는 개인정보 없이 관측할 복원 불가 답변 건수다. */
@@ -45,8 +45,8 @@ data class ParticipantProfile(
  * 일반 참가자 신청 폼 답변(Report #50). [questions]는 자기 스냅샷이고, 동행자([companion])는 대표자 스냅샷에서 제목만 빌린다.
  * - 직업(dynamicFormType OCCUPATION)·지역(formType REGION)·학교(dynamicFormType SCHOOL) 문항은 자기 답변, 없으면 자기 [profile] 값이다.
  *   그 밖의 문항은 자기 답변만 쓰고 대표자 답변은 가져오지 않는다.
- * - 스냅샷 문항은 답이 없어도 제목을 남기고 null(빈칸)로 둔다. 머리글은 첫 참가자(대표자) 키로 만들어지므로,
- *   대표자가 답하지 않은 학교 문항도 열이 있어야 교사 동행자의 학교가 나온다.
+ * - 스냅샷 문항은 답이 없어도 제목을 남기고 null(빈칸)로 둔다. 머리글은 참가자 키 합집합을 처음 나온 순서로 만들므로,
+ *   대표자가 답하지 않은 학교 문항도 스냅샷 순서 자리에 열이 생긴다.
  * - 이름·전화번호(dynamicFormType NAME·PHONE_NUMBER) 문항은 고정 열과 겹치므로 열에서 뺀다.
  */
 fun standardInformation(
@@ -88,8 +88,11 @@ private val IDENTITY_TYPES = setOf("NAME", "PHONE_NUMBER")
 // 직업 라벨은 PARTICIPANT_TYPE_LABELS(입장 기록 시트와 공유). 직업은 폼 jsonData 문구가 우선이고 없을 때만 쓴다.
 private val REGION_LABELS = mapOf("GWANGJU" to "광주", "JEONNAM" to "전남", "OTHER" to "그 외")
 
-/** 설문 답변(문항 ID 키)을 제출 당시 제목으로 바꾼다. */
-fun surveyAnswers(
+/**
+ * 문항 ID 키 답변(설문, Application 프로그램 신청)을 제출 당시 제목으로 바꾼다.
+ * 같은 제목의 뒤 문항은 버리지 않고 "제목 (문항 ID)" 열로 둔다. 앞 문항은 제목 그대로라 기존 열과 이어진다.
+ */
+fun idKeyedAnswers(
     answers: JsonNode,
     questions: JsonNode?,
 ): MappedAnswers {
@@ -102,10 +105,10 @@ fun surveyAnswers(
     val values = LinkedHashMap<String, String?>()
     snapshot.forEach { q ->
         val answer = answers.get(q.id) ?: return@forEach
-        if (q.title == null || q.title in values) {
-            counter.count++
-        } else {
-            values[q.title] = counter.display(answer, q)
+        when {
+            q.title == null -> counter.count++
+            q.title in values -> values["${q.title} (문항 ${q.id})"] = counter.display(answer, q)
+            else -> values[q.title] = counter.display(answer, q)
         }
     }
     return MappedAnswers(values, counter.count)
