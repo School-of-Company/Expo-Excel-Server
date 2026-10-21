@@ -160,7 +160,11 @@ class RegistrationLedger(
     ): List<PreregistrationTarget> {
         val initial = application.createPreregistrationSnapshot(expoId, filter)
         check(initial.totalElements >= 0)
-        if (initial.totalElements > MAX_KEYS) throw ExpectedException(HttpStatus.PAYLOAD_TOO_LARGE, "등록 원장의 사전등록 행은 최대 10,000행까지 다운로드할 수 있습니다.")
+        if (initial.totalElements >
+            MAX_KEYS
+        ) {
+            throw ExpectedException(HttpStatus.PAYLOAD_TOO_LARGE, "등록 원장의 사전등록 행은 최대 10,000행까지 다운로드할 수 있습니다.")
+        }
         val all = mutableListOf<PreregistrationTarget>()
         val cursors = mutableSetOf<String>()
         var page = initial
@@ -250,7 +254,8 @@ private fun renderRegistrationLedger(
                 // 참가자 행은 User 본인 값만 쓴다. 동행자 행에 대표 제출 번호를 넣지 않는다
                 if (person != null) person.phoneNumber else submitted?.text("phoneNumber"),
                 person?.notificationPhoneNumber,
-                person?.applicationType?.koreanName ?: ApplicationType.PRE.koreanName,
+                // 사전등록 원천 행은 신청 경로가 사전이다. User 현재 등록 방식(FIELD 재등록 등)으로 바꾸지 않는다
+                ApplicationType.PRE.koreanName,
                 row.session.sessionId.toString(),
                 row.session.title,
                 row.session.startedAt?.let(KST::format),
@@ -344,7 +349,8 @@ private fun renderRegistrationLedger(
         "회차 조건" to filter?.sessionId?.toString(),
         "상태 조건" to (filter?.status?.joinToString(",") ?: "전체"),
         "검색어" to filter?.q,
-        "행 기준" to "사전등록 참가자×회차 1행, User 미저장 예약 일행×회차 1행, 회차 없는 현장 등록 참가자 1행",
+        "행 기준" to "사전등록 참가자×회차 1행, User 미저장 예약 일행×회차 1행, 현재 확정 회차가 없는 현장 등록 참가자 1행",
+        "행 상한" to "사전등록·예약 행 최대 10,000(Application 원천과 같음). 회차 미지정 행은 이 상한과 별도로 더해짐",
         "참가자 회차 등록 행 수" to rows.count { it.rowType == PreregistrationRowType.APPLICATION }.toString(),
         "예약 행 수" to rows.count { it.rowType == PreregistrationRowType.RESERVATION }.toString(),
         "회차 미지정 현장 등록 행 수" to unassigned.size.toString(),

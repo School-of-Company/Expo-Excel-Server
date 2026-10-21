@@ -28,7 +28,9 @@ data class DownloadRequest(
     @field:Schema(description = "ATTENDANCE 양식 전용 필수 본인 연수자 ID", example = "10")
     val traineeId: Long? = null,
     @field:Schema(
-        description = "REGISTRATION_LEDGER SELECTED 전용 접수대장 key(중복 없이 1–10000개). APPLICATION:{expoId}:{id} 또는 RESERVATION:{expoId}:{requestId}",
+        description =
+            "REGISTRATION_LEDGER SELECTED 전용 접수대장 key(중복 없이 1–10000개). " +
+                "APPLICATION:{expoId}:{id} 또는 RESERVATION:{expoId}:{requestId}",
         example = "[\"APPLICATION:11111111-1111-1111-1111-111111111111:5\"]",
     )
     val keys: List<String>? = null,

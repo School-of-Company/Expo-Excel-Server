@@ -245,7 +245,8 @@ class RegistrationLedgerTests {
                     "소마초",
                     null,
                     "010-0000-0001",
-                    "현장 등록",
+                    // User 현재 등록 방식이 FIELD여도 사전등록 원천 행은 사전이다
+                    "사전 등록",
                 )
             ledger[3].subList(26, 29) shouldBe listOf("예", "대표자 제출(등록 당시)", null)
             // 예약 행: 예약 ID는 참가자 ID 열에 들어가지 않는다
@@ -272,6 +273,7 @@ class RegistrationLedgerTests {
             ledger[5].subList(0, 8) shouldBe listOf("예약(User 미저장)", ADDITION, null, "req-def", null, null, "1", "동행자 추가")
             ledger[5][22] shouldBe "복구 중"
             ledger[6].subList(0, 5) shouldBe listOf("참가자 회차 등록", FIELD_CANCELLED, "14", null, "5")
+            ledger[6][15] shouldBe "사전 등록"
             ledger[6][22] shouldBe "취소"
             // 사전등록을 모두 취소하고 현장 등록한 참가자: 취소 행과 현재 회차 미지정 행이 둘 다 남는다
             ledger[8].subList(0, 5) shouldBe listOf("현장 등록(회차 미지정)", null, null, null, "5")
@@ -499,7 +501,15 @@ class RegistrationLedgerTests {
                     "promotedFromWaiting" to true,
                     "registrationSnapshot" to submission("합성대표", "010-0000-0001", "TEACHER", "{}"),
                 ),
-            row(FIELD_CANCELLED, "APPLICATION", "CANCELLED", applicationId = 14, participantId = 5, representativeId = 5, representative = true) +
+            row(
+                FIELD_CANCELLED,
+                "APPLICATION",
+                "CANCELLED",
+                applicationId = 14,
+                participantId = 5,
+                representativeId = 5,
+                representative = true,
+            ) +
                 mapOf(
                     "createdAt" to Instant.parse("2026-10-01T00:00:00Z"),
                     "cancelledAt" to Instant.parse("2026-10-02T00:00:00Z"),
