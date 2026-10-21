@@ -97,7 +97,7 @@ class ExcelDownloadService(
         }
     }
 
-    private fun targets(
+    internal fun targets(
         expoId: UUID,
         request: DownloadRequest,
     ): List<ApplicationTarget> {
@@ -372,7 +372,7 @@ class ExcelDownloadService(
             }
         }
 
-    private fun <T> readAll(fetch: (Long?) -> DetailPage<T>): List<T> {
+    internal fun <T> readAll(fetch: (Long?) -> DetailPage<T>): List<T> {
         val items = mutableListOf<T>()
         var cursor: Long? = null
         do {
