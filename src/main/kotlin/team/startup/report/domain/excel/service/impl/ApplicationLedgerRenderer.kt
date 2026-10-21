@@ -2,7 +2,7 @@ package team.startup.report.domain.excel.service.impl
 
 import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
-import team.startup.report.domain.excel.service.surveyAnswers
+import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.global.client.ApplicationFilter
 import team.startup.report.global.client.ApplicationRow
 import team.startup.report.global.client.ApplicationStatus
@@ -74,8 +74,8 @@ fun renderApplicationLedger(
     val bodyStyle = workbook.createCellStyle().apply { thinBorders() }
 
     // 신청 답변은 문항 ID 키다. 제목은 그 신청의 제출 당시 스냅샷에서만 찾고 ID를 열 제목으로 쓰지 않는다
-    // ponytail: excel-live-data-fixes(e1ad6c7)가 병합되면 surveyAnswers → idKeyedAnswers로 바꿔 동명 문항도 보존한다
-    val answers = rows.map { surveyAnswers(it.answers, it.questions) }
+    // 같은 제목의 뒤 문항은 "제목 (문항 ID)" 열로 보존한다(idKeyedAnswers)
+    val answers = rows.map { idKeyedAnswers(it.answers, it.questions) }
     val answerKeys = answers.flatMapTo(LinkedHashSet()) { it.values.keys }
     var unrecordedHistory = 0
 

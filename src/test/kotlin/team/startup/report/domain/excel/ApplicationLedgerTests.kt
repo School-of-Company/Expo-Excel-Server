@@ -385,6 +385,27 @@ class ApplicationLedgerTests {
         send(selected(listOf(CURRENT, CANCELLED))).status shouldBe 502
     }
 
+    @Test
+    fun `동명 문항은 문항 ID로 구분한 열로 보존하고 null 답변은 빈칸, false는 그대로 둔다`() {
+        val questions =
+            QUESTIONS +
+                listOf(
+                    // 앞 문항과 제목이 같은 뒤 문항
+                    mapOf("id" to 322, "title" to "참가 학교", "formType" to "SENTENCE"),
+                )
+        select(
+            listOf(target(CURRENT, answers = mapOf("320" to "광주초", "322" to "보조학교", "321" to false, "319" to null), questions = questions)),
+        )
+        val response = send(selected(listOf(CURRENT)))
+        response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
+            val ledger = book.getSheetAt(0).values()
+            ledger[0].drop(25) shouldBe listOf("초등학교 학년", "참가 학교", "확인", "참가 학교 (문항 322)")
+            ledger[1].drop(25) shouldBe listOf(null, "광주초", "false", "보조학교")
+            book.getSheet("메타").values().associate { it[0] to it.getOrNull(1) }["미복원 답변 수"] shouldBe "0"
+        }
+    }
+
     private fun send(body: Map<String, Any?>): MockHttpServletResponse =
         mvc
             .perform(
@@ -423,6 +444,7 @@ class ApplicationLedgerTests {
         route: String? = null,
         history: List<Any> = listOf(history(1, "CONFIRMED", "2026-10-01T00:00:00Z")),
         answers: Any = emptyMap<String, Any>(),
+        questions: Any = QUESTIONS,
     ): Map<String, Any?> =
         mapOf(
             "expoId" to EVENT,
@@ -450,7 +472,7 @@ class ApplicationLedgerTests {
                             "endedAt" to "2026-10-31T10:00",
                             "place" to "강당",
                         ),
-                    "questions" to QUESTIONS,
+                    "questions" to questions,
                     "answers" to answers,
                     "admissionRoute" to route,
                     "history" to history,
