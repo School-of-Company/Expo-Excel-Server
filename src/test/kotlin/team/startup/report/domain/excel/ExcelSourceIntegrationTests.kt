@@ -222,9 +222,9 @@ class ExcelSourceIntegrationTests {
             Regex("attachment; filename\\*=UTF-8''%EA%B5%90%EC%9B%90%EC%97%B0%EC%88%98%EC%9E%90_%EC%A0%95%EB%B3%B4_\\d{8}_\\d{6}\\.xlsx")
         result.sheet("사전 교원연수자 정보").values() shouldBe
             listOf(
-                listOf("이름", "연수원아이디", "전화번호", "신청방식", "소속", "과목", "경력", "공통 강연", "선택 강연"),
-                listOf("연수자1", "T1", "010-1", "사전 등록", "가초", "수학, 과학", "", "기조 강연", "특강, AI"),
-                listOf("연수자2", "T2", "010-2", "현장 등록", "", "", "5년", "", ""),
+                listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "소속", "과목", "경력", "공통 강연", "선택 강연"),
+                listOf("연수자1", "T1", "010-1", "", "사전 등록", "가초", "수학, 과학", "", "기조 강연", "특강, AI"),
+                listOf("연수자2", "T2", "010-2", "", "현장 등록", "", "", "5년", "", ""),
             )
         assertProviderTokens()
     }
@@ -253,11 +253,11 @@ class ExcelSourceIntegrationTests {
             val sheet = workbook.getSheet("사전 교원연수자 정보")
             sheet.values() shouldBe
                 listOf(
-                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "공통 강연", "선택 강연"),
-                    listOf("연수자1", "T1", "010-1", "현장 등록", "", ""),
-                    listOf("연수자2", "", "", "사전 등록", "공통", "선택"),
-                    listOf("연수자3", "", "", "사전 등록", "", "선택"),
-                    listOf("연수자4", "T4", "010-4", "사전 등록", "", ""),
+                    listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "공통 강연", "선택 강연"),
+                    listOf("연수자1", "T1", "010-1", "", "현장 등록", "", ""),
+                    listOf("연수자2", "", "", "", "사전 등록", "공통", "선택"),
+                    listOf("연수자3", "", "", "", "사전 등록", "", "선택"),
+                    listOf("연수자4", "T4", "010-4", "", "사전 등록", "", ""),
                 )
             sheet.cell(0, 2).assertDarkHeader()
             sheet.cell(2, 2).cellStyle.borderBottom shouldBe BorderStyle.THIN
@@ -332,10 +332,10 @@ class ExcelSourceIntegrationTests {
         result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Program_Participant_Information.xlsx\""
         result.sheet("프로그램 참가자 정보").values() shouldBe
             listOf(
-                listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "학번", "서명", "비고"),
-                listOf("1.0", "참가자9", "010-9", "동의", "", "", ""),
-                listOf("2.0", "참가자4", "010-4", "미동의", "", "", ""),
-                listOf("3.0", "참가자5", "010-5", "동의", "", "", ""),
+                listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "서명", "비고"),
+                listOf("1.0", "참가자9", "010-9", "동의", "", ""),
+                listOf("2.0", "참가자4", "010-4", "미동의", "", ""),
+                listOf("3.0", "참가자5", "010-5", "동의", "", ""),
             )
         assertProviderTokens()
 
@@ -343,7 +343,7 @@ class ExcelSourceIntegrationTests {
         user.requests.clear()
         val empty = admin("/excel/program/e1?programId=7")
         empty.response.status shouldBe 200
-        empty.sheet("프로그램 참가자 정보").values() shouldBe listOf(listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "학번", "서명", "비고"))
+        empty.sheet("프로그램 참가자 정보").values() shouldBe listOf(listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "서명", "비고"))
         user.requests shouldBe emptyList()
 
         expo.on(STANDARD_PROGRAM, 404, """{"status":404}""")
@@ -511,7 +511,7 @@ class ExcelSourceIntegrationTests {
         val traineeSheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
         val programSheet = admin("/excel/program/e1?programId=7").sheet("프로그램 참가자 정보")
         payloads.forEachIndexed { index, text ->
-            listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 4), programSheet.cell(index + 1, 1)).forEach {
+            listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 5), programSheet.cell(index + 1, 1)).forEach {
                 it.cellType shouldBe CellType.STRING
                 it.stringCellValue shouldBe text
             }
@@ -550,7 +550,7 @@ class ExcelSourceIntegrationTests {
         sheet.lastRowNum shouldBe 1001
         (1..1001).forEach { id ->
             sheet.cell(id, 0).stringCellValue shouldBe "연수자$id"
-            sheet.cell(id, 4).stringCellValue shouldBe "강연$id"
+            sheet.cell(id, 5).stringCellValue shouldBe "강연$id"
         }
         application.requests.map { StubProvider.JSON.readTree(it.body)["traineeIds"].size() } shouldContainExactly listOf(500, 500, 1)
         expo.requests.filter { it.method == "POST" }.map { StubProvider.JSON.readTree(it.body)["programIds"].size() } shouldContainExactly
@@ -616,7 +616,19 @@ class ExcelSourceIntegrationTests {
         val otherExpo = trainee(4, "PRE", plain()) + mapOf("participantId" to 40, "registration" to null)
         val unlinked = trainee(5, "PRE", plain()) + mapOf("registration" to registration)
         user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "FIELD", plain("소속" to "구형학교")), linked), 2))
-        user.on("$TRAINEE_PAGE&cursor=2", body = page(listOf(companion, otherExpo, unlinked), null))
+        user.on("$TRAINEE_PAGE&cursor=2", body = page(listOf(companion, unlinked), null))
+
+        user.on(
+            STANDARD_PAGE,
+            body =
+                page(
+                    listOf(
+                        standard(20, true, "PRE", registration, null) + ("notificationPhoneNumber" to "대표수신번호"),
+                        standard(30, true, "PRE", plain(), null),
+                    ),
+                    null,
+                ),
+        )
 
         val result = admin("/excel/e1")
 
@@ -625,19 +637,20 @@ class ExcelSourceIntegrationTests {
             workbook.numberOfSheets shouldBe 1
             workbook.getSheetAt(0).values() shouldBe
                 listOf(
-                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "소속", "과목", "공통 강연", "선택 강연"),
-                    listOf("연수자1", "T1", "010-1", "현장 등록", "구형학교", "", "", ""),
-                    listOf("연수자2", "", "", "사전 등록", "등록학교", "수학, 과학", "", ""),
-                    listOf("연수자3", "T3", "010-3", "사전 등록", "동행학교", "", "", ""),
-                    listOf("연수자4", "T4", "010-4", "사전 등록", "", "", "", ""),
-                    listOf("연수자5", "T5", "010-5", "사전 등록", "", "", "", ""),
+                    listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "소속", "과목", "공통 강연", "선택 강연"),
+                    listOf("연수자1", "T1", "010-1", "", "현장 등록", "구형학교", "", "", ""),
+                    listOf("연수자2", "", "", "대표수신번호", "사전 등록", "등록학교", "수학, 과학", "", ""),
+                    listOf("연수자3", "T3", "010-3", "", "사전 등록", "동행학교", "", "", ""),
+                    listOf("연수자5", "T5", "010-5", "", "사전 등록", "", "", "", ""),
                 )
         }
         user.on(TRAINEE_PAGE, body = page(listOf(companion), null))
         val schoolOnly = admin("/excel/e1")
         XSSFWorkbook(ByteArrayInputStream(schoolOnly.response.contentAsByteArray)).use { workbook ->
-            workbook.getSheetAt(0).values()[0] shouldBe listOf("이름", "연수원아이디", "전화번호", "신청방식", "공통 강연", "선택 강연")
+            workbook.getSheetAt(0).values()[0] shouldBe listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "공통 강연", "선택 강연")
         }
+        user.on(TRAINEE_PAGE, body = page(listOf(otherExpo), null))
+        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
         assertProviderTokens()
     }
 

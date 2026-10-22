@@ -23,13 +23,14 @@ data class MappedAnswers(
 fun informationAnswers(
     answers: JsonNode,
     questions: JsonNode?,
+    roster: Boolean = false,
 ): MappedAnswers {
     if (!answers.isObject) return MappedAnswers(emptyMap(), 1)
     // 같은 제목이면 order가 앞선 문항의 형식으로 해석한다(답변 키가 제목이라 값은 하나뿐이다)
     val byTitle = LinkedHashMap<String, Question>()
     snapshotOf(questions).orEmpty().forEach { q -> q.title?.let { byTitle.putIfAbsent(it, q) } }
 
-    val counter = Counter()
+    val counter = Counter(standard = roster)
     val keys = byTitle.keys.filter(answers::has) + answers.propertyNames().filterNot(byTitle::containsKey)
     return MappedAnswers(keys.associateWith { counter.display(answers.get(it), byTitle[it]) }, counter.count)
 }
@@ -87,6 +88,8 @@ private val IDENTITY_TYPES = setOf("NAME", "PHONE_NUMBER")
 
 // 직업 라벨은 PARTICIPANT_TYPE_LABELS(입장 기록 시트와 공유). 직업은 폼 jsonData 문구가 우선이고 없을 때만 쓴다.
 private val REGION_LABELS = mapOf("GWANGJU" to "광주", "JEONNAM" to "전남", "OTHER" to "그 외")
+
+fun regionLabel(region: String?): String? = region?.let { REGION_LABELS[it] ?: it }
 
 /**
  * 문항 ID 키 답변(설문, Application 프로그램 신청)을 제출 당시 제목으로 바꾼다.
@@ -153,7 +156,7 @@ private fun snapshotOf(questions: JsonNode?): List<Question>? {
         }
 }
 
-/** [standard]면 일반 참가자 표시 규칙(직업·지역 문구, 동행자 이름)을 쓴다. 연수자·출석부는 기존 표시 그대로다. */
+/** [standard]면 명단 표시 규칙(직업·지역 문구, 동행자 이름)을 쓴다. 출석부·원장은 제출본 표시를 보존한다. */
 private class Counter(
     private val standard: Boolean = false,
 ) {
