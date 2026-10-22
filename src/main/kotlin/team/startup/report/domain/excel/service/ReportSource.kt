@@ -53,6 +53,7 @@ data class Trainee(
     // 신청 순서(applicationId 오름차순)
     val programs: List<TrainingProgram>,
     val school: String? = null,
+    val notificationPhoneNumber: String? = null,
 )
 
 data class TrainingProgram(

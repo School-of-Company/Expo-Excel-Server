@@ -3,6 +3,7 @@ package team.startup.report.domain.excel.service.impl
 import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.domain.excel.service.idKeyedAnswers
+import team.startup.report.domain.excel.service.regionLabel
 import team.startup.report.global.client.ApplicationFilter
 import team.startup.report.global.client.ApplicationRow
 import team.startup.report.global.client.ApplicationStatus
@@ -45,6 +46,7 @@ private val LEDGER_HEADERS =
         "연수자 이름",
         "직업",
         "소속",
+        "본인 지역",
         "대표/동행",
         "대표자 ID",
         "본인 연락처",
@@ -110,6 +112,7 @@ fun renderApplicationLedger(
                 trainee?.name,
                 person.occupation?.let { PARTICIPANT_TYPE_LABELS[it] ?: it },
                 person.school.requiredText(),
+                regionLabel(person.region.requiredText()),
                 if (person.representativeId == null) "대표" else "동행",
                 person.representativeId?.toString(),
                 person.phoneNumber,

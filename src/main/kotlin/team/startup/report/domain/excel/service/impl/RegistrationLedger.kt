@@ -8,6 +8,7 @@ import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.domain.excel.service.informationAnswers
+import team.startup.report.domain.excel.service.regionLabel
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.PreregistrationRowType
 import team.startup.report.global.client.PreregistrationStatus
@@ -63,6 +64,7 @@ private val HEADERS =
         "이름",
         "직업",
         "소속",
+        "본인 지역",
         "본인 연락처",
         "알림 연락처",
         "등록 방식",
@@ -251,6 +253,7 @@ private fun renderRegistrationLedger(
                 if (person != null) person.name else submitted?.text("name"),
                 (if (person != null) person.occupation else submitted?.text("occupation"))?.let { PARTICIPANT_TYPE_LABELS[it] ?: it },
                 person?.school?.requiredText(),
+                regionLabel(person?.region?.requiredText()),
                 // 참가자 행은 User 본인 값만 쓴다. 동행자 행에 대표 제출 번호를 넣지 않는다
                 if (person != null) person.phoneNumber else submitted?.text("phoneNumber"),
                 person?.notificationPhoneNumber,
@@ -294,6 +297,7 @@ private fun renderRegistrationLedger(
                 person.name,
                 person.occupation?.let { PARTICIPANT_TYPE_LABELS[it] ?: it },
                 person.school.requiredText(),
+                regionLabel(person.region.requiredText()),
                 person.phoneNumber,
                 person.notificationPhoneNumber,
                 ApplicationType.FIELD.koreanName,

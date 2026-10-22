@@ -178,8 +178,8 @@ class MappedAnswersTests :
 
             val trainee =
                 rows(renderTrainees(listOf(Trainee("김교사", "T1", "010", ApplicationType.FIELD, info, emptyList()))))
-            trainee[0] shouldContainExactly listOf("이름", "연수원아이디", "전화번호", "신청방식", "학교명", "과목", "공통 강연", "선택 강연")
-            trainee[1] shouldContainExactly listOf("김교사", "T1", "010", "현장 등록", "가초", "국어, 수학", "", "")
+            trainee[0] shouldContainExactly listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "학교명", "과목", "공통 강연", "선택 강연")
+            trainee[1] shouldContainExactly listOf("김교사", "T1", "010", "", "현장 등록", "가초", "국어, 수학", "", "")
         }
 
         "일반 참가자: 동행자는 대표자 스냅샷의 제목만 빌리고 값은 자기 직업·지역·학교뿐이다" {
@@ -230,12 +230,20 @@ class MappedAnswersTests :
             mapped.unresolved shouldBe 3
         }
 
-        "연수자·출석부의 등록 답변은 기존 표시 그대로다(지역 코드·동행자 JSON을 바꾸지 않는다)" {
+        "출석부·원장 제출본의 등록 답변은 원본 표시를 보존하고 명단만 라벨을 쓴다" {
             val mapped = informationAnswers(json(REPRESENTATIVE_ANSWERS), REGISTRATION_QUESTIONS)
 
             mapped.values["지역"] shouldBe "GWANGJU"
             mapped.values["이름"] shouldBe "대표"
             mapped.values["동행자"] shouldBe """{"name":"가람","occupation":"ELEMENTARY_STUDENT","region":"JEONNAM"}, {"name":"나래"}"""
+            val roster = informationAnswers(json(REPRESENTATIVE_ANSWERS), REGISTRATION_QUESTIONS, roster = true)
+            roster.values["지역"] shouldBe "광주"
+            roster.values["동행자"] shouldBe "가람, 나래"
+        }
+
+        "현재 본인 지역은 알려진 코드만 표시하고 미기록이나 알 수 없는 지역을 추정하지 않는다" {
+            listOf("GWANGJU", "JEONNAM", "OTHER", "FUTURE", null).map(::regionLabel) shouldBe
+                listOf("광주", "전남", "그 외", "FUTURE", null)
         }
     })
 

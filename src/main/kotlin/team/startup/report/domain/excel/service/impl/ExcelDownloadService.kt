@@ -303,13 +303,20 @@ class ExcelDownloadService(
                 val traineeIds = rows.map { it.traineeId!! }.toSet()
                 val people = readAll { user.traineePage(expoId, it) }.filter { it.traineeId in traineeIds }
                 check(people.map { it.traineeId }.toSet() == traineeIds && people.size == traineeIds.size)
+                val participants =
+                    if (people.any {
+                            it.participantId != null
+                        }
+                    ) {
+                        readAll { user.standardParticipantPage(expoId, it) }.associateBy { it.participantId }
+                    } else {
+                        emptyMap()
+                    }
                 val result =
                     people.sortedBy { it.traineeId }.map { person ->
                         val selected = byTrainee.getValue(person.traineeId)
                         check(selected.all { it.participantId == person.participantId })
-                        val registration =
-                            person.registration?.let { informationAnswers(it.answers, it.questions).values }.orEmpty() +
-                                informationAnswers(person.information.answers, person.information.questions).values
+                        val registration = person.rosterInformation(participants).values
                         Trainee(
                             person.name,
                             person.trainingId,
@@ -318,6 +325,7 @@ class ExcelDownloadService(
                             existingAnswers(registration, selected),
                             programs(selected),
                             person.school,
+                            person.participantId?.let { participants.getValue(it).notificationPhoneNumber },
                         )
                     }
                 ExcelFile("attachment; filename=\"Trainee_Information.xlsx\"", renderTrainees(result))

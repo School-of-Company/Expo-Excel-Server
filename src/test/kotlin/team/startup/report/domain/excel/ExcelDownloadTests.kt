@@ -18,9 +18,16 @@ import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import team.startup.report.domain.excel.presentation.ExcelController
 import team.startup.report.domain.excel.presentation.ExcelDownloadController
 import team.startup.report.domain.excel.service.impl.ExcelDownloadService
+import team.startup.report.domain.excel.service.impl.HttpReportSource
+import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExcelServiceImpl
+import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
+import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
+import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.StubProvider
@@ -29,6 +36,8 @@ import team.startup.report.global.security.ExcelSecurityConfig
 import team.startup.report.support.TestJwt
 import team.startup.report.support.values
 import java.io.ByteArrayInputStream
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
 import java.util.UUID
 
@@ -37,8 +46,17 @@ private val FIRST = UUID.fromString("22222222-2222-2222-2222-222222222222")
 private val SECOND = UUID.fromString("33333333-3333-3333-3333-333333333333")
 private val TARGET = "/internal/expos/$EVENT/program-session-applications/report-targets"
 
-@WebMvcTest(ExcelDownloadController::class)
-@Import(ExcelSecurityConfig::class, ExcelDownloadService::class, ExcelDownloadTests.ClientConfig::class)
+@WebMvcTest(ExcelDownloadController::class, ExcelController::class)
+@Import(
+    ExcelSecurityConfig::class,
+    ExcelDownloadService::class,
+    HttpReportSource::class,
+    TraineeInfoToExcelServiceImpl::class,
+    StandardParticipantInfoToExcelServiceImpl::class,
+    ProgramParticipantInfoToExcelServiceImpl::class,
+    TraineeAttendanceToExcelServiceImpl::class,
+    ExcelDownloadTests.ClientConfig::class,
+)
 class ExcelDownloadTests {
     @Autowired
     private lateinit var mvc: MockMvc
@@ -143,9 +161,9 @@ class ExcelDownloadTests {
         response.status shouldBe 200
         sheet(response) shouldBe
             listOf(
-                listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "소속", "직업", "신청 경로", "신청 시각", "학교", "학년", "보호자 연락처", "학번", "서명", "비고"),
-                listOf("1.0", "참가자", "010", "동의", "등록초", "초등학생", "현장", "2026-01-01 09:00:00", "광주초", "2학년", null, "", "", ""),
-                listOf("2.0", "참가자", "010", "동의", null, null, "사전", "2026-01-01 09:00:00", "전남중", null, "010-guardian", "", "", ""),
+                listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "소속", "직업", "신청 경로", "신청 시각", "학교", "학년", "보호자 연락처", "서명", "비고"),
+                listOf("1.0", "참가자", "010", "동의", "등록초", "초등학생", "현장", "2026-01-01 09:00:00", "광주초", "2학년", null, "", ""),
+                listOf("2.0", "참가자", "010", "동의", null, null, "사전", "2026-01-01 09:00:00", "전남중", null, "010-guardian", "", ""),
             )
     }
 
@@ -262,16 +280,121 @@ class ExcelDownloadTests {
     fun `연수 명단은 신규 원장 회차 스냅샷을 쓰고 등록 답변을 우선한다`() {
         select(listOf(target(FIRST, type = "TRAINING")))
         user.on("GET /internal/expos/$EVENT/trainees/details?size=500", body = mapOf("items" to listOf(trainee()), "nextCursor" to null))
+        user.on(
+            "GET /internal/expos/$EVENT/standard-participants/details?size=500",
+            body =
+                mapOf("items" to listOf(person(1) + ("information" to mapOf("answers" to mapOf("학교명" to "등록학교")))), "nextCursor" to null),
+        )
         val response = send(selected("TRAINEE", listOf(FIRST)))
         response.status shouldBe 200
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
             val sheet = book.getSheetAt(0)
             sheet.getRow(1).getCell(1).stringCellValue shouldBe ""
             sheet.getRow(1).getCell(2).stringCellValue shouldBe ""
-            sheet.getRow(1).getCell(4).stringCellValue shouldBe "등록학교"
-            sheet.getRow(1).getCell(5).stringCellValue shouldBe "회차"
+            sheet.getRow(1).getCell(5).stringCellValue shouldBe "등록학교"
+            sheet.getRow(1).getCell(6).stringCellValue shouldBe "회차"
         }
         application.requests.none { it.uri.contains("/trainees") } shouldBe true
+    }
+
+    @Test
+    fun `연수 동행자 본인 프로필과 알림 연락처는 GET SELECTED FILTER에서 일치한다`() {
+        val questions =
+            listOf(
+                mapOf("id" to 1, "title" to "직업", "dynamicFormType" to "OCCUPATION"),
+                mapOf("id" to 2, "title" to "소속", "dynamicFormType" to "SCHOOL"),
+                mapOf("id" to 3, "title" to "지역", "formType" to "REGION"),
+                mapOf("id" to 4, "title" to "동행자", "formType" to "COMPANION"),
+            )
+        val representative =
+            person(1) +
+                mapOf(
+                    "occupation" to "TEACHER",
+                    "region" to "GWANGJU",
+                    "school" to "대표학교",
+                    "information" to
+                        mapOf(
+                            "answers" to
+                                mapOf(
+                                    "직업" to "TEACHER",
+                                    "소속" to "대표학교",
+                                    "지역" to "GWANGJU",
+                                    "동행자" to listOf(mapOf("name" to "동행")),
+                                ),
+                            "questions" to questions,
+                        ),
+                )
+        val companion =
+            person(2) +
+                mapOf(
+                    "representativeId" to 1,
+                    "name" to "동행",
+                    "phoneNumber" to null,
+                    "notificationPhoneNumber" to "synthetic-contact",
+                    "occupation" to "PRE_SERVICE_TEACHER",
+                    "region" to "JEONNAM",
+                    "school" to "동행대학",
+                    "information" to mapOf("answers" to emptyMap<String, Any>()),
+                )
+        user.on(
+            "GET /internal/expos/$EVENT/standard-participants/details?size=500",
+            body =
+                mapOf("items" to listOf(representative, companion), "nextCursor" to null),
+        )
+        user.on(
+            "GET /internal/expos/$EVENT/trainees/details?size=500",
+            body =
+                mapOf(
+                    "items" to listOf(trainee() + mapOf("participantId" to 2, "name" to "동행", "registration" to null)),
+                    "nextCursor" to null,
+                ),
+        )
+        val row = target(FIRST, participant = 2, type = "TRAINING", answers = emptyMap(), questions = emptyList())
+        select(listOf(row))
+        application.on("POST $TARGET", body = snapshot(listOf(row), null, total = 1))
+        application.on(
+            "POST /internal/training-program-applications/trainees",
+            body =
+                listOf(
+                    mapOf(
+                        "applicationId" to 1,
+                        "traineeId" to 10,
+                        "trainingProgramId" to 7,
+                    ),
+                ),
+        )
+        expo.on(
+            "POST /internal/expo/$EVENT/training-programs/batch",
+            body =
+                listOf(
+                    mapOf(
+                        "id" to 7,
+                        "title" to "회차",
+                        "category" to "ESSENTIAL",
+                        "startedAt" to "2026-01-01T09:00",
+                        "endedAt" to "2026-01-01T10:00",
+                    ),
+                ),
+        )
+        val responses =
+            listOf(
+                mvc
+                    .perform(
+                        get("/excel/$EVENT").header(HttpHeaders.AUTHORIZATION, "Bearer ${TestJwt.token("ROLE_ADMIN")}"),
+                    ).andReturn()
+                    .response,
+                send(selected("TRAINEE", listOf(FIRST))),
+                send(mapOf("template" to "TRAINEE", "scope" to "FILTER")),
+            )
+        Files.createDirectories(Path.of("build/issue88"))
+        responses.zip(listOf("get", "selected", "filter")).forEach { (response, scope) ->
+            Files.write(Path.of("build/issue88/trainee-$scope.xlsx"), response.contentAsByteArray)
+        }
+        val (legacy, selected, filtered) = responses.map(::sheet)
+        selected shouldBe legacy
+        filtered shouldBe legacy
+        legacy[0] shouldBe listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "직업", "소속", "지역", "동행자", "공통 강연", "선택 강연")
+        legacy[1] shouldBe listOf("동행", "", "", "synthetic-contact", "사전 등록", "예비교사", "동행대학", "전남", "", "회차", "")
     }
 
     @Test

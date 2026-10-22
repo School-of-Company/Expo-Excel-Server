@@ -23,7 +23,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 // v1 Expo-Server 858101864235c9492fb2bd37ccf1df5346958d66 domain/excel/service/impl 의 시트 구성을 그대로 옮긴다.
-// 시트명·열 제목·열 순서·값 표현·서식은 외부 계약이므로 v1 결함까지 포함해 바꾸지 않는다.
+// 시트명·열 제목·열 순서·값 표현·서식은 외부 계약이다. Report #88의 연락처 추가·고정 학번 제거 외에는 기존 구성을 유지한다.
 
 private const val EXCEL_CELL_MAX_LEN = 32767
 private val DARK_HEADER_RGB = rgb(34, 37, 41)
@@ -68,22 +68,27 @@ fun renderTrainees(trainees: List<Trainee>): SXSSFWorkbook {
     val bodyStyle = workbook.createCellStyle().apply { thinBorders() }
 
     val dynamicKeys = trainees.flatMapTo(LinkedHashSet()) { it.information.keys }
-    val headers = listOf("이름", "연수원아이디", "전화번호", "신청방식") + dynamicKeys + listOf("공통 강연", "선택 강연")
+    val headers = listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식") + dynamicKeys + listOf("공통 강연", "선택 강연")
     sheet.writeRow(0, headers.map(::safe), headerStyle)
 
     trainees.forEachIndexed { index, trainee ->
         val (common, selective) = trainee.programs.partition { it.category == TrainingCategory.ESSENTIAL }
         sheet.writeRow(
             index + 1,
-            listOf(trainee.name, trainee.trainingId, trainee.phoneNumber, trainee.applicationType.koreanName)
-                .plus(
-                    dynamicKeys.map { key ->
-                        val schoolKey = if ("학교명" in dynamicKeys) "학교명" else "소속"
-                        trainee.information[key] ?: trainee.school.takeIf {
-                            key == schoolKey && trainee.information["학교명"] == null && trainee.information["소속"] == null
-                        }
-                    },
-                ).plus(listOf(common, selective).map { programs -> programs.map { it.title }.distinct().joinToString(", ") })
+            listOf(
+                trainee.name,
+                trainee.trainingId,
+                trainee.phoneNumber,
+                trainee.notificationPhoneNumber,
+                trainee.applicationType.koreanName,
+            ).plus(
+                dynamicKeys.map { key ->
+                    val schoolKey = if ("학교명" in dynamicKeys) "학교명" else "소속"
+                    trainee.information[key] ?: trainee.school.takeIf {
+                        key == schoolKey && trainee.information["학교명"] == null && trainee.information["소속"] == null
+                    }
+                },
+            ).plus(listOf(common, selective).map { programs -> programs.map { it.title }.distinct().joinToString(", ") })
                 .map(::safe),
             bodyStyle,
         )
@@ -119,7 +124,7 @@ fun renderProgramParticipants(participants: List<ProgramParticipant>): SXSSFWork
                 .orEmpty()
         }
     val extraHeaders = if (extended) listOf("소속", "직업", "신청 경로", "신청 시각") + answerKeys else emptyList()
-    sheet.writeRow(0, (listOf("순위", "이름", "전화번호", "개인정보 동의 여부") + extraHeaders + listOf("학번", "서명", "비고")).map(::safe), headerStyle)
+    sheet.writeRow(0, (listOf("순위", "이름", "전화번호", "개인정보 동의 여부") + extraHeaders + listOf("서명", "비고")).map(::safe), headerStyle)
     participants.forEachIndexed { index, participant ->
         val row = sheet.createRow(index + 1)
         row.createCell(0).apply {
@@ -135,7 +140,7 @@ fun renderProgramParticipants(participants: List<ProgramParticipant>): SXSSFWork
                     .plus(answerKeys.map { application?.answers?.get(it) })
                     .map { it?.let(::safe) }
             }
-        (listOf(participant.name, participant.phoneNumber, consent(participant.personalInformationStatus)) + extra + listOf("", "", ""))
+        (listOf(participant.name, participant.phoneNumber, consent(participant.personalInformationStatus)) + extra + listOf("", ""))
             .forEachIndexed { offset, value ->
                 row.createCell(offset + 1).apply {
                     setCellValue(value)

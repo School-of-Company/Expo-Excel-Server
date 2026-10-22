@@ -172,6 +172,7 @@ class ApplicationLedgerTests {
                     "연수자 이름",
                     "직업",
                     "소속",
+                    "본인 지역",
                     "대표/동행",
                     "대표자 ID",
                     "본인 연락처",
@@ -203,6 +204,7 @@ class ApplicationLedgerTests {
                     null,
                     "교원",
                     "소마초",
+                    "광주",
                     "대표",
                     null,
                     "010-0000-0001",
@@ -234,6 +236,7 @@ class ApplicationLedgerTests {
                     null,
                     "교원",
                     "소마초",
+                    "광주",
                     "대표",
                     null,
                     "010-0000-0001",
@@ -255,11 +258,11 @@ class ApplicationLedgerTests {
                     "false",
                 )
             // 동행자: 본인 번호 빈칸, 알림 번호는 대표자 번호, 이력 미기록은 빈 시각 + 비고
-            ledger[3].subList(9, 13) shouldBe listOf("동행", "1", null, "010-0000-0001")
-            ledger[3].subList(19, 25) shouldBe listOf("취소", "2026-10-01 09:00:00", null, null, "상태 이력 미기록", null)
-            ledger[3][26] shouldBe "줄\n바꿈"
+            ledger[3].subList(10, 14) shouldBe listOf("동행", "1", null, "010-0000-0001")
+            ledger[3].subList(20, 26) shouldBe listOf("취소", "2026-10-01 09:00:00", null, null, "상태 이력 미기록", null)
+            ledger[3][27] shouldBe "줄\n바꿈"
             ledger[4].subList(0, 7) shouldBe listOf("연수 신청", "$TRAINING_A", "7", "1", "10", "참가자1", "연수자프로필")
-            ledger[5].subList(13, 14) shouldBe listOf("82")
+            ledger[5].subList(14, 15) shouldBe listOf("82")
 
             val history = book.getSheet("상태 이력").values()
             history shouldBe
@@ -400,10 +403,37 @@ class ApplicationLedgerTests {
         response.status shouldBe 200
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
             val ledger = book.getSheetAt(0).values()
-            ledger[0].drop(25) shouldBe listOf("초등학교 학년", "참가 학교", "확인", "참가 학교 (문항 322)")
-            ledger[1].drop(25) shouldBe listOf(null, "광주초", "false", "보조학교")
+            ledger[0].drop(26) shouldBe listOf("초등학교 학년", "참가 학교", "확인", "참가 학교 (문항 322)")
+            ledger[1].drop(26) shouldBe listOf(null, "광주초", "false", "보조학교")
             book.getSheet("메타").values().associate { it[0] to it.getOrNull(1) }["미복원 답변 수"] shouldBe "0"
         }
+    }
+
+    @Test
+    fun `본인 지역과 과거 신청 지역은 선택 필터 모두 별도 열로 보존한다`() {
+        val questions = listOf(mapOf("id" to 1, "title" to "지역", "formType" to "REGION"))
+        val rows =
+            listOf(
+                target(CURRENT, participant = 1, answers = mapOf("1" to "GWANGJU"), questions = questions),
+                target(COMPANION, participant = 2, answers = mapOf("1" to "GWANGJU"), questions = questions),
+            )
+        select(rows)
+        application.on("POST $TARGET", body = snapshot(rows, null))
+        val outputs =
+            listOf(selected(listOf(CURRENT, COMPANION)), mapOf("template" to "APPLICATION_LEDGER", "scope" to "FILTER")).map { request ->
+                val response = send(request)
+                response.status shouldBe 200
+                Files.createDirectories(Path.of("build/issue88"))
+                Files.write(Path.of("build/issue88/application-ledger.xlsx"), response.contentAsByteArray)
+                XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { it.getSheetAt(0).values() }
+            }
+        outputs[0] shouldBe outputs[1]
+        val ledger = outputs[0]
+        val headers = ledger[0]
+        headers[headers.indexOf("소속") + 1] shouldBe "본인 지역"
+        ledger.drop(1).map { it[headers.indexOf("본인 지역")] } shouldBe listOf("광주", "전남")
+        ledger.drop(1).map { it[headers.indexOf("지역")] } shouldBe listOf("GWANGJU", "GWANGJU")
+        ledger.forEach { it.size shouldBe headers.size }
     }
 
     private fun send(body: Map<String, Any?>): MockHttpServletResponse =
@@ -512,7 +542,12 @@ class ApplicationLedgerTests {
         "surveyAnswer" to null,
         "occupation" to "TEACHER",
         "representativeId" to representative,
-        "region" to null,
+        "region" to
+            when (id) {
+                1L -> "GWANGJU"
+                2L -> "JEONNAM"
+                else -> null
+            },
         "school" to "소마초",
     )
 
