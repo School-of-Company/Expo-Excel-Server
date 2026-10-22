@@ -135,6 +135,7 @@ class RegistrationLedgerTests {
                     "이름",
                     "직업",
                     "소속",
+                    "본인 지역",
                     "본인 연락처",
                     "알림 연락처",
                     "등록 방식",
@@ -170,6 +171,7 @@ class RegistrationLedgerTests {
                     "참가자1",
                     "교원",
                     "소마초",
+                    "광주",
                     "010-0000-0001",
                     "010-0000-0001",
                     "사전 등록",
@@ -206,6 +208,7 @@ class RegistrationLedgerTests {
                     "참가자1",
                     "교원",
                     "소마초",
+                    "광주",
                     "010-0000-0001",
                     "010-0000-0001",
                     "사전 등록",
@@ -227,7 +230,7 @@ class RegistrationLedgerTests {
                     null,
                 )
             // 동행자: 본인 번호 없음, 알림은 대표자 번호, 답변은 대표 제출본으로 표시
-            ledger[3].subList(0, 16) shouldBe
+            ledger[3].subList(0, 17) shouldBe
                 listOf(
                     "참가자 회차 등록",
                     COMPANION,
@@ -243,14 +246,15 @@ class RegistrationLedgerTests {
                     // User 현재 직업·본인 번호 null은 대표 제출본(TEACHER, 010-0000-0001)으로 채우지 않는다
                     null,
                     "소마초",
+                    "전남",
                     null,
                     "010-0000-0001",
                     // User 현재 등록 방식이 FIELD여도 사전등록 원천 행은 사전이다
                     "사전 등록",
                 )
-            ledger[3].subList(26, 29) shouldBe listOf("예", "대표자 제출(등록 당시)", null)
+            ledger[3].subList(27, 30) shouldBe listOf("예", "대표자 제출(등록 당시)", null)
             // 예약 행: 예약 ID는 참가자 ID 열에 들어가지 않는다
-            ledger[4].subList(0, 16) shouldBe
+            ledger[4].subList(0, 17) shouldBe
                 listOf(
                     "예약(User 미저장)",
                     WAITING,
@@ -265,20 +269,21 @@ class RegistrationLedgerTests {
                     "대기대표",
                     "학부모",
                     null,
+                    null,
                     "010-0000-0009",
                     null,
                     "사전 등록",
                 )
-            ledger[4].subList(22, 24) shouldBe listOf("대기", null)
+            ledger[4].subList(23, 25) shouldBe listOf("대기", null)
             ledger[5].subList(0, 8) shouldBe listOf("예약(User 미저장)", ADDITION, null, "req-def", null, null, "1", "동행자 추가")
-            ledger[5][22] shouldBe "복구 중"
+            ledger[5][23] shouldBe "복구 중"
             ledger[6].subList(0, 5) shouldBe listOf("참가자 회차 등록", FIELD_CANCELLED, "14", null, "5")
-            ledger[6][15] shouldBe "사전 등록"
-            ledger[6][22] shouldBe "취소"
+            ledger[6][16] shouldBe "사전 등록"
+            ledger[6][23] shouldBe "취소"
             // 사전등록을 모두 취소하고 현장 등록한 참가자: 취소 행과 현재 회차 미지정 행이 둘 다 남는다
             ledger[8].subList(0, 5) shouldBe listOf("현장 등록(회차 미지정)", null, null, null, "5")
-            ledger[8].subList(15, 23) shouldBe listOf("현장 등록", null, "회차 미지정", null, null, null, null, "해당 없음(회차 미지정)")
-            ledger[7].subList(0, 23) shouldBe
+            ledger[8].subList(16, 24) shouldBe listOf("현장 등록", null, "회차 미지정", null, null, null, null, "해당 없음(회차 미지정)")
+            ledger[7].subList(0, 24) shouldBe
                 listOf(
                     "현장 등록(회차 미지정)",
                     null,
@@ -293,6 +298,7 @@ class RegistrationLedgerTests {
                     "참가자3",
                     "교원",
                     "소마초",
+                    null,
                     "010-0000-0003",
                     "010-0000-0003",
                     "현장 등록",
@@ -304,7 +310,7 @@ class RegistrationLedgerTests {
                     null,
                     "해당 없음(회차 미지정)",
                 )
-            ledger[7].subList(27, 32) shouldBe listOf("User 등록 답변", null, "현장학교", null, null)
+            ledger[7].subList(28, 33) shouldBe listOf("User 등록 답변", null, "현장학교", null, null)
             ledger.drop(1).map { it[4] } shouldNotContain "req-abc"
 
             book.getSheet("등록 상태 이력").values() shouldBe
@@ -432,6 +438,32 @@ class RegistrationLedgerTests {
                 snapshot(listOf(all()[0]), null, total = 1) + ("expiresAt" to Instant.parse("2020-01-01T00:00:00Z")),
         )
         send(registration(emptyMap())).status shouldBe 410
+    }
+
+    @Test
+    fun `본인 지역은 현재 프로필이고 대표 제출 지역과 출처는 선택 필터 모두 보존한다`() {
+        val submitted =
+            submission("대표", "synthetic-contact", "TEACHER", """{"지역":"GWANGJU"}""") +
+                ("questions" to listOf(mapOf("id" to "region", "title" to "지역", "formType" to "REGION")))
+        val rows = listOf(all()[0], all()[2]).map { it + ("registrationSnapshot" to submitted) }
+        application.on("POST $SOURCE/selection", body = mapOf("items" to rows, "totalElements" to 2))
+        application.on("POST $SOURCE", body = snapshot(rows, null, total = 2))
+        val outputs =
+            listOf(selected(listOf(MORNING, COMPANION)), registration(mapOf("sessionId" to 3))).map { request ->
+                val response = send(request)
+                response.status shouldBe 200
+                Files.createDirectories(Path.of("build/issue88"))
+                Files.write(Path.of("build/issue88/registration-ledger.xlsx"), response.contentAsByteArray)
+                XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { it.getSheetAt(0).values() }
+            }
+        outputs[0] shouldBe outputs[1]
+        val ledger = outputs[0]
+        val headers = ledger[0]
+        headers[headers.indexOf("소속") + 1] shouldBe "본인 지역"
+        ledger.drop(1).map { it[headers.indexOf("본인 지역")] } shouldBe listOf("광주", "전남")
+        ledger.drop(1).map { it[headers.indexOf("지역")] } shouldBe listOf("GWANGJU", "GWANGJU")
+        ledger.drop(1).map { it[headers.indexOf("답변 출처")] } shouldBe listOf("본인 제출(등록 당시)", "대표자 제출(등록 당시)")
+        ledger.forEach { it.size shouldBe headers.size }
     }
 
     private fun all(): List<Map<String, Any?>> {
@@ -632,7 +664,12 @@ class RegistrationLedgerTests {
         "surveyAnswer" to null,
         "occupation" to occupation,
         "representativeId" to representative,
-        "region" to null,
+        "region" to
+            when (id) {
+                1L -> "GWANGJU"
+                2L -> "JEONNAM"
+                else -> null
+            },
         "school" to "소마초",
     )
 

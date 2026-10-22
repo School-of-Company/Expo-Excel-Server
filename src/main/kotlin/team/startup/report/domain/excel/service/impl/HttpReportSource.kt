@@ -18,6 +18,7 @@ import team.startup.report.global.client.DetailPage
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.InformationResDto
 import team.startup.report.global.client.StandardParticipantDetail
+import team.startup.report.global.client.TraineeDetailItem
 import team.startup.report.global.client.TrainingApplication
 import team.startup.report.global.client.UserClient
 import team.startup.report.global.security.ExcelAccessInterceptor
@@ -58,6 +59,15 @@ class HttpReportSource(
     override fun trainees(expoId: String): List<Trainee>? {
         expo.expo(expoId) ?: return null
         val trainees = readAll { user.traineePage(expoId, it) }.sortedBy { it.traineeId }
+        val people =
+            if (trainees.any {
+                    it.participantId != null
+                }
+            ) {
+                readAll { user.standardParticipantPage(expoId, it) }.associateBy { it.participantId }
+            } else {
+                emptyMap()
+            }
         val applications = trainingApplications(trainees.map { it.traineeId }).groupBy { it.traineeId }
         val programs = trainingPrograms(expoId, applications.values.flatten())
         val unresolved = Unresolved()
@@ -68,9 +78,10 @@ class HttpReportSource(
                     trainingId = trainee.trainingId,
                     phoneNumber = trainee.phoneNumber,
                     applicationType = trainee.applicationType,
-                    information = unresolved.traineeAnswers(trainee.information, trainee.participantId, trainee.registration),
+                    information = unresolved.add(trainee.rosterInformation(people)),
                     programs = applications[trainee.traineeId].orEmpty().map { programs.getValue(it.trainingProgramId) },
                     school = trainee.school,
+                    notificationPhoneNumber = trainee.participantId?.let { people.getValue(it).notificationPhoneNumber },
                 )
             }.also { unresolved.report("trainee", expoId) }
     }
@@ -203,4 +214,14 @@ internal fun StandardParticipantDetail.registration(all: Map<Long, StandardParti
 internal fun JsonNode?.requiredText(): String? {
     check(this != null && (isNull || isString)) { "${UserClient.NAME} 서비스 응답 형식 오류" }
     return if (isNull) null else stringValue()
+}
+
+internal fun TraineeDetailItem.rosterInformation(all: Map<Long, StandardParticipantDetail>): MappedAnswers {
+    val registered =
+        participantId?.let { id ->
+            val person = all[id] ?: error("${UserClient.NAME} 서비스 응답 누락")
+            person.registration(all)
+        } ?: MappedAnswers(emptyMap(), 0)
+    val training = informationAnswers(information.answers, information.questions, roster = true)
+    return MappedAnswers(registered.values + training.values, registered.unresolved + training.unresolved)
 }

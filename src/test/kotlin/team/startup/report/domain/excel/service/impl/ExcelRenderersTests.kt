@@ -12,6 +12,7 @@ import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import team.startup.report.domain.excel.service.ApplicationType
+import team.startup.report.domain.excel.service.ProgramApplicationColumns
 import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
@@ -153,9 +154,9 @@ class ExcelRenderersTests :
 
             sheet.values() shouldBe
                 listOf(
-                    listOf("이름", "연수원아이디", "전화번호", "신청방식", "학교", "과목", "경력", "공통 강연", "선택 강연"),
-                    listOf("박교사", "T-1", "010", "사전 등록", "가초", "수학", "", "기조 강연", "AI, 특강"),
-                    listOf("최교사", "", "011", "현장 등록", "", "", "5년", "", ""),
+                    listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "학교", "과목", "경력", "공통 강연", "선택 강연"),
+                    listOf("박교사", "T-1", "010", "", "사전 등록", "가초", "수학", "", "기조 강연", "AI, 특강"),
+                    listOf("최교사", "", "011", "", "현장 등록", "", "", "5년", "", ""),
                 )
             sheet.defaultColumnWidth shouldBe 20
             sheet.cell(0, 8).assertDarkHeader()
@@ -172,9 +173,9 @@ class ExcelRenderersTests :
 
             sheet.values() shouldBe
                 listOf(
-                    listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "학번", "서명", "비고"),
-                    listOf("1.0", "가", "010", "동의", "", "", ""),
-                    listOf("2.0", "나", null, "미동의", "", "", ""),
+                    listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "서명", "비고"),
+                    listOf("1.0", "가", "010", "동의", "", ""),
+                    listOf("2.0", "나", null, "미동의", "", ""),
                 )
             sheet.cell(1, 0).cellType shouldBe CellType.NUMERIC
             val header = sheet.cell(0, 0).cellStyle
@@ -187,6 +188,44 @@ class ExcelRenderersTests :
 
         "프로그램 참가자 0명: 머리글만" {
             read(renderProgramParticipants(emptyList())).getSheet("프로그램 참가자 정보").values().size shouldBe 1
+        }
+
+        "프로그램 상세: 동적 학번과 서명 비고는 보존하고 모든 행을 머리글에 맞춘다" {
+            val sheet =
+                read(
+                    renderProgramParticipants(
+                        listOf(
+                            ProgramParticipant(
+                                "가",
+                                null,
+                                true,
+                                ProgramApplicationColumns(
+                                    "학교",
+                                    "학생",
+                                    "현장",
+                                    "2026-10-22",
+                                    linkedMapOf(
+                                        "학번" to "S-1",
+                                        "확인" to "false",
+                                    ),
+                                ),
+                            ),
+                            ProgramParticipant("나", null, null),
+                        ),
+                    ),
+                ).getSheetAt(0)
+            sheet.values() shouldBe
+                listOf(
+                    listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "소속", "직업", "신청 경로", "신청 시각", "학번", "확인", "서명", "비고"),
+                    listOf("1.0", "가", null, "동의", "학교", "학생", "현장", "2026-10-22", "S-1", "false", "", ""),
+                    listOf("2.0", "나", null, "미기록", null, null, null, null, null, null, "", ""),
+                )
+            sheet.forEach { row ->
+                row.lastCellNum.toInt() shouldBe 12
+                (0 until 12).forEach { sheet.cell(row.rowNum, it).cellStyle.assertThinBorders() }
+            }
+            sheet.defaultColumnWidth shouldBe 20
+            sheet.workbook.getPrintArea(0) shouldBe null
         }
 
         "출석부: v1 레이아웃·병합·인쇄 서식" {
