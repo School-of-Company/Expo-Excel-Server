@@ -64,6 +64,15 @@ class RegistrationLedgerTests {
             it.routes.clear()
             it.requests.clear()
         }
+        application.on(
+            "GET /internal/expos/$EVENT/field-visits?size=100",
+            body =
+                mapOf(
+                    "items" to emptyList<Any>(),
+                    "events" to emptyList<Any>(),
+                    "nextCursor" to null,
+                ),
+        )
         expo.on("GET /internal/expo/$EVENT", body = mapOf("title" to "박람회"))
         expo.on(
             "GET /internal/expo/$EVENT/admin-access",
@@ -118,7 +127,13 @@ class RegistrationLedgerTests {
         Files.write(Path.of("build/ledger/registration-ledger.xlsx"), response.contentAsByteArray)
 
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
-            val ledger = book.getSheet("등록 원장").values()
+            val fullLedger = book.getSheet("등록 원장").values()
+            fullLedger[0].takeLast(7) shouldBe listOf("방문일", "FIELD 상태", "세대", "현장 등록 ID", "취소 참가자 ID", "취소 전달 대기", "등록 전달 대기")
+            fullLedger.drop(1).forEach { row ->
+                row.takeLast(7) shouldBe
+                    if (row[0] == "현장 등록(회차 미지정)") listOf("UNKNOWN", null, null, null, null, null, null) else List(7) { null }
+            }
+            val ledger = fullLedger.map { it.dropLast(7) }
             ledger.size shouldBe 9
             ledger[0] shouldBe
                 listOf(
@@ -390,6 +405,9 @@ class RegistrationLedgerTests {
             registration(mapOf("q" to "가".repeat(51))),
             registration(mapOf("sessionId" to 0)),
             registration(mapOf("status" to "DONE")),
+            registration(mapOf("visitDate" to "2026-10-31", "sessionId" to 3)),
+            registration(mapOf("fieldStatus" to "ACTIVE", "status" to "CONFIRMED")),
+            registration(mapOf("visitDate" to "unknown")),
             registration(mapOf("page" to 0)),
             mapOf("template" to "STANDARD", "scope" to "SELECTED", "applicationIds" to listOf(EVENT), "keys" to listOf(MORNING)),
         ).forEach { send(it).status shouldBe 400 }
@@ -465,6 +483,204 @@ class RegistrationLedgerTests {
         ledger.drop(1).map { it[headers.indexOf("답변 출처")] } shouldBe listOf("본인 제출(등록 당시)", "대표자 제출(등록 당시)")
         ledger.forEach { it.size shouldBe headers.size }
     }
+
+    @Test
+    fun `방문일 페이지를 끝까지 읽고 PRE와 본인 프로필을 보존하며 pending과 세대 취소 이력을 셀에 출력한다`() {
+        val first = visit("00000000-0000-0000-0000-000000000001", 1, "2026-10-31", generation = 2)
+        val second = visit("00000000-0000-0000-0000-000000000002", 1, "2026-11-01", pending = true)
+        val third = visit("00000000-0000-0000-0000-000000000003", 2, "2026-10-31", status = "CANCELLED")
+        val fourth = visit("00000000-0000-0000-0000-000000000004", 5, "2026-10-31", cancellationPending = true)
+        val events = listOf(event(first, 1, "REGISTERED"), event(first, 1, "CANCELLED"), event(first, 2, "REGISTERED"))
+        application.on(
+            "GET /internal/expos/$EVENT/field-visits?size=100",
+            body =
+                mapOf(
+                    "items" to listOf(first),
+                    "events" to events,
+                    "nextCursor" to first["id"],
+                ),
+        )
+        application.on(
+            "GET /internal/expos/$EVENT/field-visits?cursor=${first["id"]}&size=100",
+            body =
+                mapOf("items" to listOf(second, third, fourth), "events" to emptyList<Any>(), "nextCursor" to null),
+        )
+        application.on("POST $SOURCE", body = snapshot(listOf(all()[0]), null, total = 1))
+        val response = send(registration(emptyMap()))
+        response.status shouldBe 200
+        Files.createDirectories(Path.of("build/issue92"))
+        Files.write(Path.of("build/issue92/field-visit-ledger.xlsx"), response.contentAsByteArray)
+        XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
+            val data = book.getSheet("등록 원장").values()
+            val headers = data.first()
+            val rows = data.drop(1).map { headers.zip(it).toMap() }
+            rows.size shouldBe 6
+            rows.first()["접수 키"] shouldBe MORNING
+            rows.first()["등록 방식"] shouldBe "사전 등록"
+            val field = rows.filter { it["행 유형"] == "현장 방문일 등록" }
+            field.map { it["상태"] } shouldBe listOf("등록 완료", "등록 전달 대기", "취소", "취소 전달 대기")
+            field[1]["확정 시각"] shouldBe null
+            field[3]["확정 시각"] shouldBe null
+            field.map { it["방문일"] } shouldBe listOf("2026-10-31", "2026-11-01", "2026-10-31", "2026-10-31")
+            field[2]["본인 연락처"] shouldBe null
+            field[2]["알림 연락처"] shouldBe "010-0000-0001"
+            field[2]["본인 지역"] shouldBe "전남"
+            field[2]["취소 참가자 ID"] shouldBe "1"
+            field[2]["취소 시각"] shouldBe "2026-10-22 10:00:00"
+            rows.single { it["참가자 ID"] == "3" }["방문일"] shouldBe "UNKNOWN"
+            book
+                .getSheet("현장 등록 세대 이력")
+                .values()
+                .drop(1)
+                .map { it[1] to it[2] } shouldBe
+                listOf("1" to "REGISTERED", "1" to "CANCELLED", "2" to "REGISTERED")
+            book.getSheet("등록 상태 이력").values().drop(2).forEach {
+                it[5] shouldBe "1"
+                it[6] shouldBe null
+            }
+            book.getSheet("방문일별 현장 인원").values().drop(1) shouldBe
+                listOf(listOf("2026-10-31", "3", "1", "1", "0", "1"), listOf("2026-11-01", "1", "0", "0", "1", "0"))
+            data.forEach { it.size shouldBe headers.size }
+        }
+    }
+
+    @Test
+    fun `날짜 현장상태 검색 필터와 선택 키는 FIELD 원천을 쓰며 UNKNOWN과 PRE를 날짜 인원에 섞지 않는다`() {
+        val row = visit("00000000-0000-0000-0000-000000000001", 2, "2026-10-31", status = "CANCELLED")
+        val page = mapOf("items" to listOf(row), "events" to listOf(event(row, 1, "CANCELLED")), "nextCursor" to null)
+        application.on("GET /internal/expos/$EVENT/field-visits?visitDate=2026-10-31&size=100", body = page)
+        application.on("GET /internal/expos/$EVENT/field-visits?size=100", body = page)
+        listOf(
+            registration(mapOf("visitDate" to "2026-10-31", "fieldStatus" to "CANCELLED", "q" to "참가자2")),
+            selected(listOf("FIELD:$EVENT:${row["id"]}")),
+        ).forEach { request ->
+            val response = send(request)
+            response.status shouldBe 200
+            XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
+                val data = book.getSheet("등록 원장").values()
+                data.size shouldBe 2
+                data[1][4] shouldBe "2"
+                data[1].takeLast(7).take(2) shouldBe listOf("2026-10-31", "CANCELLED")
+            }
+        }
+        application.requests.all { it.method == "GET" } shouldBe true
+        send(registration(mapOf("visitDate" to "2026-10-31", "fieldStatus" to "ACTIVE"))).status shouldBe 400
+        send(selected(listOf("FIELD:$OTHER_EVENT:${row["id"]}"))).status shouldBe 400
+    }
+
+    @Test
+    fun `FIELD 공급자 장애 반복 커서 잘못된 날짜 행사 참가자와 이벤트는 부분 파일 없이 실패한다`() {
+        val row = visit("00000000-0000-0000-0000-000000000001", 1, "2026-10-31")
+        val request = registration(mapOf("visitDate" to "2026-10-31"))
+        val path = "GET /internal/expos/$EVENT/field-visits?visitDate=2026-10-31&size=100"
+        listOf(
+            row + ("expoId" to OTHER_EVENT),
+            row + ("visitDate" to "2026-11-01"),
+            row + ("participantId" to 999),
+            row + ("generation" to 0),
+            row - "deliveryPending",
+            row - "cancellationPending",
+            row + ("deliveryPending" to null),
+        ).forEach {
+            application.on(path, body = mapOf("items" to listOf(it), "events" to emptyList<Any>(), "nextCursor" to null))
+            send(request).status shouldBe 502
+        }
+        application.on(path, body = mapOf("items" to listOf(row), "events" to listOf(event(row, 2, "REGISTERED")), "nextCursor" to null))
+        send(request).status shouldBe 502
+        application.on(path, status = 503, body = emptyMap<String, Any>())
+        send(request).status shouldBe 502
+        val repeat = mapOf("items" to listOf(row), "events" to emptyList<Any>(), "nextCursor" to row["id"])
+        application.on(path, body = repeat)
+        application.on("GET /internal/expos/$EVENT/field-visits?visitDate=2026-10-31&cursor=${row["id"]}&size=100", body = repeat)
+        send(request).status shouldBe 502
+    }
+
+    @Test
+    fun `PRE와 FIELD 혼합 선택은 요청 순서와 참가자 식별자를 보존한다`() {
+        val row = visit("00000000-0000-0000-0000-000000000001", 2, "2026-10-31")
+        val key = "FIELD:$EVENT:${row["id"]}"
+        application.on(
+            "GET /internal/expos/$EVENT/field-visits?size=100",
+            body =
+                mapOf(
+                    "items" to listOf(row),
+                    "events" to listOf(event(row, 1, "REGISTERED")),
+                    "nextCursor" to null,
+                ),
+        )
+        application.on("POST $SOURCE/selection", body = mapOf("items" to listOf(all()[0]), "totalElements" to 1))
+        val response = send(selected(listOf(key, MORNING)))
+        response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
+            book
+                .getSheet("등록 원장")
+                .values()
+                .drop(1)
+                .map { it[1] to it[4] } shouldBe listOf(key to "2", MORNING to "1")
+        }
+        StubProvider.JSON
+            .readTree(application.requests.single { it.method == "POST" }.body)
+            .path("keys")
+            .toString() shouldBe
+            """["$MORNING"]"""
+    }
+
+    private fun visit(
+        id: String,
+        participant: Long,
+        date: String,
+        status: String = "ACTIVE",
+        generation: Int = 1,
+        pending: Boolean = false,
+        cancellationPending: Boolean = false,
+    ): Map<String, Any?> =
+        mapOf(
+            "id" to id,
+            "expoId" to EVENT,
+            "participantId" to participant,
+            "visitDate" to date,
+            "status" to status,
+            "generation" to generation,
+            "registeredAt" to "2026-10-22T00:00:00Z",
+            "cancelledAt" to
+                if (status ==
+                    "CANCELLED"
+                ) {
+                    "2026-10-22T01:00:00Z"
+                } else {
+                    null
+                },
+            "cancelledBy" to
+                if (status ==
+                    "CANCELLED"
+                ) {
+                    1
+                } else {
+                    null
+                },
+            "cancellationPending" to cancellationPending,
+            "deliveryPending" to pending,
+        )
+
+    private fun event(
+        row: Map<String, Any?>,
+        generation: Int,
+        type: String,
+    ) = mapOf(
+        "registrationId" to row["id"],
+        "generation" to generation,
+        "eventType" to type,
+        "occurredAt" to
+            if (type ==
+                "CANCELLED"
+            ) {
+                "2026-10-22T01:00:00Z"
+            } else {
+                "2026-10-22T00:00:00Z"
+            },
+        "actorParticipantId" to 1,
+        "operationId" to EVENT,
+    )
 
     private fun all(): List<Map<String, Any?>> {
         val rep = submission("합성대표", "010-0000-0001", "TEACHER", """{"학교":"광주초","학년":"4","동의":false}""")
