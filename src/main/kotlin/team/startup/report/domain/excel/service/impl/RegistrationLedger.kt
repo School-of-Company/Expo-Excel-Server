@@ -10,6 +10,8 @@ import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.domain.excel.service.informationAnswers
 import team.startup.report.domain.excel.service.regionLabel
 import team.startup.report.global.client.ApplicationClient
+import team.startup.report.global.client.FieldVisit
+import team.startup.report.global.client.FieldVisitEvent
 import team.startup.report.global.client.PreregistrationRowType
 import team.startup.report.global.client.PreregistrationStatus
 import team.startup.report.global.client.PreregistrationTarget
@@ -107,6 +109,10 @@ class RegistrationLedger(
             }
         }
         request.registrationFilter?.let {
+            valid(
+                (it.visitDate == null && it.fieldStatus == null) || (it.sessionId == null && it.status == null),
+                "방문일·현장 상태는 사전등록 회차·상태와 함께 지정할 수 없습니다.",
+            )
             valid(it.sessionId == null || it.sessionId > 0, "회차 ID는 양수여야 합니다.")
             valid(it.status == null || (it.status.isNotEmpty() && it.status.distinct().size == it.status.size), "상태는 중복 없이 1개 이상이어야 합니다.")
             valid(it.q == null || (it.q.isNotBlank() && it.q.length <= 50), "검색어는 1–50자여야 합니다.")
@@ -118,30 +124,62 @@ class RegistrationLedger(
         request: DownloadRequest,
     ): ExcelFile {
         val filter = request.registrationFilter ?: RegistrationFilter()
-        val rows = if (request.scope == DownloadScope.SELECTED) selected(expoId, request.keys!!) else filtered(expoId, filter)
+        val preKeys = request.keys?.filterNot { it.startsWith("FIELD:") }
+        val rows =
+            when {
+                request.scope == DownloadScope.SELECTED -> if (preKeys!!.isEmpty()) emptyList() else selected(expoId, preKeys)
+                filter.visitDate != null || filter.fieldStatus != null -> emptyList()
+                else -> filtered(expoId, filter.copy(visitDate = null, fieldStatus = null))
+            }
         check(rows.map { it.key }.distinct().size == rows.size)
         rows.forEach { check(it, expoId) }
 
         val people = participants(expoId.toString()).associateBy { it.participantId }
         check(people.keys.containsAll(rows.mapNotNull { it.participantId }))
+        val includeVisits =
+            if (request.scope ==
+                DownloadScope.SELECTED
+            ) {
+                request.keys!!.any { it.startsWith("FIELD:") }
+            } else {
+                filter.sessionId == null && filter.status == null
+            }
+        val source = if (includeVisits) readFieldVisits(application, expoId, filter.visitDate) else FieldVisitData(emptyList(), emptyList())
+        check(people.keys.containsAll(source.items.map { it.participantId }))
+        val visits =
+            source.items.filter { visit ->
+                if (request.scope == DownloadScope.SELECTED) {
+                    visit.key in request.keys!!
+                } else {
+                    val person = people.getValue(visit.participantId)
+                    (filter.fieldStatus == null || visit.status == filter.fieldStatus) &&
+                        (
+                            filter.q == null || person.name.orEmpty().contains(filter.q, ignoreCase = true) ||
+                                person.phoneNumber.orEmpty().contains(filter.q)
+                        )
+                }
+            }
+        if (request.scope == DownloadScope.SELECTED) valid(visits.size + rows.size == request.keys!!.size, "선택한 현장 등록을 찾을 수 없습니다.")
         val confirmed = rows.filter { it.status == PreregistrationStatus.CONFIRMED }.mapNotNullTo(HashSet()) { it.participantId }
         val includeField = request.scope == DownloadScope.FILTER && filter == RegistrationFilter()
+        val datedParticipants = source.items.mapTo(HashSet()) { it.participantId }
         val unassigned =
             if (includeField) {
                 people.values
                     .filter {
-                        it.applicationType == ApplicationType.FIELD && it.participantId !in confirmed
+                        it.applicationType == ApplicationType.FIELD && it.participantId !in confirmed &&
+                            it.participantId !in datedParticipants
                     }.sortedBy { it.participantId }
             } else {
                 emptyList()
             }
-        valid(rows.isNotEmpty() || unassigned.isNotEmpty(), "다운로드 대상이 없습니다.")
+        valid(rows.isNotEmpty() || unassigned.isNotEmpty() || visits.isNotEmpty(), "다운로드 대상이 없습니다.")
 
         val now = Instant.now()
         val filename = UriUtils.encode("등록원장_${FILENAME_TIME.format(now)}.xlsx", Charsets.UTF_8)
         return ExcelFile(
             "attachment; filename*=UTF-8''$filename",
-            renderRegistrationLedger(rows, people, unassigned, now, expoId, request, includeField),
+            renderRegistrationLedger(rows, people, unassigned, now, expoId, request, includeField, visits, source.events),
         )
     }
 
@@ -220,6 +258,8 @@ private fun renderRegistrationLedger(
     expoId: UUID,
     request: DownloadRequest,
     includeField: Boolean,
+    visits: List<FieldVisit>,
+    events: List<FieldVisitEvent>,
 ): org.apache.poi.xssf.streaming.SXSSFWorkbook {
     val workbook = newWorkbook(500)
     val headerStyle = darkHeaderStyle(workbook)
@@ -232,7 +272,8 @@ private fun renderRegistrationLedger(
     val answerKeys = answers.flatMapTo(LinkedHashSet()) { it?.values?.keys.orEmpty() }
 
     val sheet = workbook.createSheet("등록 원장").apply { defaultColumnWidth = 18 }
-    sheet.writeRow(0, (HEADERS + answerKeys).map(::ledgerCell), headerStyle)
+    val selectedRows = if (request.scope == DownloadScope.SELECTED) mutableMapOf<String, List<String?>>() else null
+    sheet.writeRow(0, (HEADERS + answerKeys + FIELD_HEADERS).map(::ledgerCell), headerStyle)
     rows.forEachIndexed { index, row ->
         val submitted = row.registrationSnapshot?.takeUnless(JsonNode::isNull)
         val person = row.participantId?.let(people::getValue)
@@ -278,7 +319,16 @@ private fun renderRegistrationLedger(
                 },
                 answers[index]?.unresolved?.takeIf { it > 0 }?.toString(),
             )
-        sheet.writeRow(index + 1, (fixed + answerKeys.map { answers[index]?.values?.get(it) }).map { it?.let(::ledgerCell) }, bodyStyle)
+        val cells =
+            (
+                fixed +
+                    answerKeys.map {
+                        answers[index]?.values?.get(
+                            it,
+                        )
+                    } + List(FIELD_HEADERS.size) { null }
+            ).map { it?.let(::ledgerCell) }
+        if (selectedRows != null) selectedRows[row.key] = cells else sheet.writeRow(index + 1, cells, bodyStyle)
     }
     unassigned.forEachIndexed { offset, person ->
         val index = rows.size + offset
@@ -315,7 +365,14 @@ private fun renderRegistrationLedger(
                 "User 등록 답변",
                 answers[index]?.unresolved?.takeIf { it > 0 }?.toString(),
             )
-        sheet.writeRow(index + 1, (fixed + answerKeys.map { answers[index]?.values?.get(it) }).map { it?.let(::ledgerCell) }, bodyStyle)
+        sheet.writeRow(
+            index + 1,
+            (
+                fixed + answerKeys.map { answers[index]?.values?.get(it) } + listOf("UNKNOWN") +
+                    List(FIELD_HEADERS.size - 1) { null }
+            ).map { it?.let(::ledgerCell) },
+            bodyStyle,
+        )
     }
 
     val historySheet = workbook.createSheet("등록 상태 이력").apply { defaultColumnWidth = 20 }
@@ -340,6 +397,24 @@ private fun renderRegistrationLedger(
             )
         }
     }
+    writeFieldVisits(
+        workbook,
+        visits,
+        events,
+        people,
+        HEADERS.size,
+        answerKeys.size,
+        rows.size + unassigned.size,
+        historyRow,
+        headerStyle,
+        bodyStyle,
+        selectedRows,
+    )
+    if (selectedRows !=
+        null
+    ) {
+        request.keys!!.forEachIndexed { index, key -> sheet.writeRow(index + 1, selectedRows.getValue(key), bodyStyle) }
+    }
 
     val filter = request.registrationFilter
     val metaSheet = workbook.createSheet("메타").apply { defaultColumnWidth = 30 }
@@ -353,14 +428,18 @@ private fun renderRegistrationLedger(
         "회차 조건" to filter?.sessionId?.toString(),
         "상태 조건" to (filter?.status?.joinToString(",") ?: "전체"),
         "검색어" to filter?.q,
-        "행 기준" to "사전등록 참가자×회차 1행, User 미저장 예약 일행×회차 1행, 현재 확정 회차가 없는 현장 등록 참가자 1행",
+        "방문일 조건" to filter?.visitDate?.toString(),
+        "현장 상태 조건" to filter?.fieldStatus?.name,
+        "방문일 현장 등록 행 수" to visits.size.toString(),
+        "현장 집계 기준" to "참가자×방문일. 활성 완료는 ACTIVE이며 cancellationPending·deliveryPending이 모두 false. 입장 인원 아님. UNKNOWN은 날짜별 집계 제외",
+        "행 기준" to "사전등록 참가자×회차, User 미저장 예약 일행×회차, FIELD 참가자×방문일 각 1행. 명시적 방문일 원천과 확정 회차가 없는 과거 FIELD는 UNKNOWN",
         "행 상한" to "사전등록·예약 행 최대 10,000(Application 원천과 같음). 회차 미지정 행은 이 상한과 별도로 더해짐",
         "참가자 회차 등록 행 수" to rows.count { it.rowType == PreregistrationRowType.APPLICATION }.toString(),
         "예약 행 수" to rows.count { it.rowType == PreregistrationRowType.RESERVATION }.toString(),
         "회차 미지정 현장 등록 행 수" to unassigned.size.toString(),
         "회차 미지정 행 포함" to
             if (includeField) "포함(조건 없는 필터 전체)" else "제외(선택·회차·상태·검색 조건이 있으면 회차 없음을 판정할 수 없음)",
-        "상태 이력 행 수" to (historyRow - 1).toString(),
+        "상태 이력 행 수" to (historyRow - 1 + events.count { event -> visits.any { it.id == event.registrationId } }).toString(),
         "시각 미기록 이력 수" to untimed.toString(),
         "제출본 미기록 행 수" to rows.count { it.registrationSnapshot == null || it.registrationSnapshot.isNull }.toString(),
         "미복원 답변 수" to answers.sumOf { it?.unresolved ?: 0 }.toString(),

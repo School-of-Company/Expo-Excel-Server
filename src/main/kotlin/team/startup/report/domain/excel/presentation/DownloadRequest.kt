@@ -30,11 +30,11 @@ data class DownloadRequest(
     @field:Schema(
         description =
             "REGISTRATION_LEDGER SELECTED 전용 접수대장 key(중복 없이 1–10000개). " +
-                "APPLICATION:{expoId}:{id} 또는 RESERVATION:{expoId}:{requestId}",
+                "APPLICATION:{expoId}:{id}, RESERVATION:{expoId}:{requestId}, FIELD:{expoId}:{registrationId}",
         example = "[\"APPLICATION:11111111-1111-1111-1111-111111111111:5\"]",
     )
     val keys: List<String>? = null,
-    @field:Schema(description = "REGISTRATION_LEDGER FILTER 전용 사전등록 접수대장 필터")
+    @field:Schema(description = "REGISTRATION_LEDGER FILTER 전용 등록 필터. visitDate/fieldStatus는 FIELD 전용이며 PRE 회차/상태와 동시 지정 불가")
     val registrationFilter: RegistrationFilter? = null,
 ) {
     @JsonAnySetter

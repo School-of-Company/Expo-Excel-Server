@@ -5,12 +5,30 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
 import team.startup.report.global.exception.ExpectedException
+import java.time.LocalDate
 import java.util.UUID
 
 /** Expo-Application-Server 내부 조회(PR #23). 공급자는 ID 오름차순으로 주지만 호출자가 applicationId로 다시 정렬한다. */
 class ApplicationClient(
     private val http: RestClient,
 ) {
+    fun fieldVisits(
+        expoId: UUID,
+        visitDate: LocalDate?,
+        cursor: UUID?,
+    ): FieldVisitPage =
+        http
+            .get()
+            .uri {
+                it
+                    .path("/internal/expos/{expoId}/field-visits")
+                    .apply {
+                        if (visitDate != null) queryParam("visitDate", visitDate)
+                        if (cursor != null) queryParam("cursor", cursor)
+                    }.queryParam("size", 100)
+                    .build(expoId)
+            }.fetchRequired(NAME)
+
     fun selectedTargets(
         expoId: UUID,
         applicationIds: List<UUID>,

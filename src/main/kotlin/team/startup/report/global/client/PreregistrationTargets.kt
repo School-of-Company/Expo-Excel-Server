@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import io.swagger.v3.oas.annotations.media.Schema
 import tools.jackson.databind.JsonNode
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 
 // Expo-Application-Server #284 사전등록 report-targets(ReportPreregistrationTargetDto). 필드 이름·의미는 공급자와 같다.
@@ -24,6 +25,10 @@ data class RegistrationFilter(
     val status: List<PreregistrationStatus>? = null,
     @field:Schema(description = "이름·전화번호 부분 일치(1–50자). 확정·취소 행은 User 현재 값, 예약 행은 제출 당시 대표 값", example = "홍길동")
     val q: String? = null,
+    @field:Schema(description = "FIELD 방문일. 지정하면 PRE·예약·날짜 UNKNOWN 행은 제외")
+    val visitDate: LocalDate? = null,
+    @field:Schema(description = "FIELD 상태. 지정하면 PRE·예약·날짜 UNKNOWN 행은 제외")
+    val fieldStatus: FieldVisitStatus? = null,
 ) {
     @JsonAnySetter
     fun rejectUnknown(
