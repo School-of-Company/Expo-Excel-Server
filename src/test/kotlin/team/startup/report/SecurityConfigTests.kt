@@ -40,6 +40,20 @@ class SecurityConfigTests {
     }
 
     @Test
+    fun `GC pause time is exported as an SLO bucket histogram`() {
+        // GC 알림은 비동기로 기록되므로 버킷이 보일 때까지 잠깐 다시 긁는다
+        System.gc()
+        val bucket = Regex("""jvm_gc_pause_seconds_bucket\{[^}]*le="0\.05"[^}]*}""")
+        val deadline = System.nanoTime() + 10_000_000_000
+        var body = request("/actuator/prometheus").body()
+        while (!bucket.containsMatchIn(body) && System.nanoTime() < deadline) {
+            Thread.sleep(100)
+            body = request("/actuator/prometheus").body()
+        }
+        bucket.containsMatchIn(body) shouldBe true
+    }
+
+    @Test
     fun `other endpoints still require authentication`() {
         listOf("/actuator/info", "/v3/api-docs", "/actuator/prometheus/other", "/unknown").forEach { path ->
             request(path).statusCode() shouldBe 401
