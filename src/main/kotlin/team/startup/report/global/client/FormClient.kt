@@ -11,6 +11,7 @@ import tools.jackson.databind.JsonNode
  */
 class FormClient(
     private val http: RestClient?,
+    private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     /** 행사에 공개 설문이 없으면 null(공급자 404). 커서는 공급자가 준 값을 그대로 넘기므로 공급자 400은 계약 오류로 보고 실패다. */
     fun publicSurveyAnswerPage(
@@ -27,7 +28,7 @@ class FormClient(
                     .apply { if (cursor != null) queryParam("cursor", "{cursor}") }
                     .queryParam("limit", PAGE_SIZE)
                     .build(*listOfNotNull(expoId, cursor).toTypedArray())
-            }.fetchOrNull(NAME)
+            }.fetchOrNull(resilience.read)
     }
 
     companion object {

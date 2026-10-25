@@ -11,6 +11,7 @@ import java.util.UUID
 /** Expo-Application-Server 내부 조회(PR #23). 공급자는 ID 오름차순으로 주지만 호출자가 applicationId로 다시 정렬한다. */
 class ApplicationClient(
     private val http: RestClient,
+    private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     fun fieldVisits(
         expoId: UUID,
@@ -27,7 +28,7 @@ class ApplicationClient(
                         if (cursor != null) queryParam("cursor", cursor)
                     }.queryParam("size", 100)
                     .build(expoId)
-            }.fetchRequired(NAME)
+            }.fetchRequired(resilience.read)
 
     fun selectedTargets(
         expoId: UUID,
@@ -37,7 +38,7 @@ class ApplicationClient(
             .post()
             .uri(TARGET_PATH + "/selection", expoId)
             .body(mapOf("applicationIds" to applicationIds))
-            .targetResponse()
+            .targetResponse(resilience.write)
 
     fun createTargetSnapshot(
         expoId: UUID,
@@ -47,12 +48,13 @@ class ApplicationClient(
             .post()
             .uri(TARGET_PATH, expoId)
             .body(mapOf("filter" to filter, "limit" to 500))
-            .targetResponse(snapshotCreation = true)
+            .targetResponse(resilience.write, snapshotCreation = true)
 
     fun nextTargetSnapshot(
         expoId: UUID,
         cursor: String,
-    ): ApplicationSnapshot = http.get().uri { it.path(TARGET_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse()
+    ): ApplicationSnapshot =
+        http.get().uri { it.path(TARGET_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse(resilience.read)
 
     fun selectedPreregistrations(
         expoId: UUID,
@@ -62,7 +64,7 @@ class ApplicationClient(
             .post()
             .uri(PREREGISTRATION_PATH + "/selection", expoId)
             .body(mapOf("keys" to keys))
-            .targetResponse()
+            .targetResponse(resilience.write)
 
     fun createPreregistrationSnapshot(
         expoId: UUID,
@@ -72,17 +74,20 @@ class ApplicationClient(
             .post()
             .uri(PREREGISTRATION_PATH, expoId)
             .body(mapOf("filter" to filter, "limit" to 500))
-            .targetResponse(snapshotCreation = true)
+            .targetResponse(resilience.write, snapshotCreation = true)
 
     fun nextPreregistrationSnapshot(
         expoId: UUID,
         cursor: String,
     ): PreregistrationSnapshot =
-        http.get().uri { it.path(PREREGISTRATION_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse()
+        http.get().uri { it.path(PREREGISTRATION_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse(resilience.read)
 
-    private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(snapshotCreation: Boolean = false): T =
+    private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(
+        guard: ClientResilience.Guard,
+        snapshotCreation: Boolean = false,
+    ): T =
         try {
-            retrieve().body(object : ParameterizedTypeReference<T>() {}) ?: error("Application 대상 응답 없음")
+            guard.run { retrieve().body(object : ParameterizedTypeReference<T>() {}) } ?: error("Application 대상 응답 없음")
         } catch (e: RestClientResponseException) {
             val status =
                 when (e.statusCode.value()) {
@@ -104,7 +109,7 @@ class ApplicationClient(
 
     /** 프로그램의 일반 신청. 공급자는 프로그램 존재를 확인하지 않으므로 존재 확인은 Expo로 한다. */
     fun standardApplications(programId: Long): List<StandardApplication> =
-        http.get().uri("/internal/standard-program-applications/program/{programId}", programId).fetchRequired(NAME)
+        http.get().uri("/internal/standard-program-applications/program/{programId}", programId).fetchRequired(resilience.read)
 
     fun trainingApplications(traineeIds: List<Long>): List<TrainingApplication> {
         require(traineeIds.size <= MAX_TRAINEE_IDS)
@@ -112,7 +117,7 @@ class ApplicationClient(
             .post()
             .uri("/internal/training-program-applications/trainees")
             .body(mapOf("traineeIds" to traineeIds))
-            .fetchRequired(NAME)
+            .fetchRequired(resilience.write)
     }
 
     companion object {
