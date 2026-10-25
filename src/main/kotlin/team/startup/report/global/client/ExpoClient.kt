@@ -11,6 +11,7 @@ import tools.jackson.databind.JsonNode
 /** Expo-Expo-Server 내부 조회(PR #50). */
 class ExpoClient(
     private val http: RestClient,
+    private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     fun requireAdminAccess(
         expoId: String,
@@ -19,12 +20,14 @@ class ExpoClient(
     ) {
         try {
             val body =
-                http
-                    .get()
-                    .uri("/internal/expo/{expoId}/admin-access", expoId)
-                    .header(HttpHeaders.AUTHORIZATION, authorization)
-                    .retrieve()
-                    .body(JsonNode::class.java)
+                resilience.read.run {
+                    http
+                        .get()
+                        .uri("/internal/expo/{expoId}/admin-access", expoId)
+                        .header(HttpHeaders.AUTHORIZATION, authorization)
+                        .retrieve()
+                        .body(JsonNode::class.java)
+                }
                     ?: error("권한 응답 없음")
             check(body.path("adminId").isIntegralNumber && body.path("adminId").canConvertToLong())
             check(body.path("adminId").asLong() == adminId && adminId > 0)
@@ -47,14 +50,14 @@ class ExpoClient(
     }
 
     /** 없으면 null */
-    fun expo(expoId: String): ExpoSummary? = http.get().uri("/internal/expo/{expoId}", expoId).fetchOrNull(NAME)
+    fun expo(expoId: String): ExpoSummary? = http.get().uri("/internal/expo/{expoId}", expoId).fetchOrNull(resilience.read)
 
     /** 행사가 없거나 프로그램이 그 행사 소속이 아니면 null(공급자는 둘 다 404) */
     fun standardProgram(
         expoId: String,
         programId: Long,
     ): StandardProgramSummary? =
-        http.get().uri("/internal/expo/{expoId}/standard-programs/{programId}", expoId, programId).fetchOrNull(NAME)
+        http.get().uri("/internal/expo/{expoId}/standard-programs/{programId}", expoId, programId).fetchOrNull(resilience.read)
 
     /** 없거나 다른 행사 소속이면 null(공급자 404) */
     fun trainingProgram(
@@ -65,7 +68,7 @@ class ExpoClient(
             .post()
             .uri("/internal/expo/{expoId}/training-programs/batch", expoId)
             .body(mapOf("programIds" to listOf(programId)))
-            .fetchOrNull<List<TrainingProgramSummary>>(NAME)
+            .fetchOrNull<List<TrainingProgramSummary>>(resilience.write)
             ?.single()
             ?.also { check(it.id == programId) { "$NAME 서비스 대상 오류" } }
 
@@ -79,7 +82,7 @@ class ExpoClient(
             .post()
             .uri("/internal/expo/{expoId}/training-programs/batch", expoId)
             .body(mapOf("programIds" to programIds))
-            .fetchRequired(NAME)
+            .fetchRequired(resilience.write)
     }
 
     companion object {
