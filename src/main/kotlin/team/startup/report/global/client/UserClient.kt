@@ -13,19 +13,22 @@ import java.util.Optional
  */
 class UserClient(
     private val http: RestClient,
+    private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     fun standardParticipantPage(
         expoId: String,
         cursor: Long?,
-    ): DetailPage<StandardParticipantDetail> = http.get().uri(detailPage("standard-participants", expoId, cursor)).fetchRequired(NAME)
+    ): DetailPage<StandardParticipantDetail> =
+        http.get().uri(detailPage("standard-participants", expoId, cursor)).fetchRequired(resilience.read)
 
     fun traineePage(
         expoId: String,
         cursor: Long?,
-    ): DetailPage<TraineeDetailItem> = http.get().uri(detailPage("trainees", expoId, cursor)).fetchRequired(NAME)
+    ): DetailPage<TraineeDetailItem> = http.get().uri(detailPage("trainees", expoId, cursor)).fetchRequired(resilience.read)
 
     /** 없으면 null */
-    fun trainee(traineeId: Long): TraineeDetail? = http.get().uri("/internal/trainees/{traineeId}/details", traineeId).fetchOrNull(NAME)
+    fun trainee(traineeId: Long): TraineeDetail? =
+        http.get().uri("/internal/trainees/{traineeId}/details", traineeId).fetchOrNull(resilience.read)
 
     /** 요청 순서대로 모두 돌려준다. 없는 ID나 다른 행사 참가자가 섞이면 공급자가 404로 거절하고, 여기서는 실패다. */
     fun standardParticipantBriefs(
@@ -37,7 +40,7 @@ class UserClient(
             .post()
             .uri("/internal/standard-participants/details")
             .body(mapOf("expoId" to expoId, "participantIds" to participantIds))
-            .fetchRequired(NAME)
+            .fetchRequired(resilience.write)
     }
 
     /**
@@ -53,7 +56,7 @@ class UserClient(
             .post()
             .uri("/internal/standard-participants/names")
             .body(mapOf("expoId" to expoId, "participantIds" to participantIds))
-            .fetchOrNull(NAME)
+            .fetchOrNull(resilience.write)
     }
 
     /** 연수자 이름. 거절 규칙과 상한은 [standardParticipantNames]와 같다. */
@@ -66,7 +69,7 @@ class UserClient(
             .post()
             .uri("/internal/trainees/names")
             .body(mapOf("expoId" to expoId, "traineeIds" to traineeIds))
-            .fetchOrNull(NAME)
+            .fetchOrNull(resilience.write)
     }
 
     // cursor가 null이면 쿼리에서 빠진다(처음부터)

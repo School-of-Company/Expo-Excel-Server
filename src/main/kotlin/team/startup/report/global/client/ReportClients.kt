@@ -63,6 +63,7 @@ class ReportClientsConfig(
     private val properties: ReportClientsProperties,
     private val jsonMapper: JsonMapper,
 ) {
+    // 회로는 공급자마다 하나다(각 클라이언트가 자기 ClientResilience를 가진다)
     @Bean
     fun userClient() = UserClient(restClient(properties.user))
 
@@ -104,15 +105,17 @@ fun reportRestClient(
 
 /**
  * 공급자 호출 결과를 읽는다. [notFoundAsNull]이면 404는 "대상 없음"(null)이고, 그 밖의 실패는 모두 예외다.
+ * 실제 HTTP 호출만 [guard]로 감싼다(회로·재시도). 404 변환과 본문 형식 오류는 회로 밖에서 일어나 장애로 세지 않는다.
  * 예외 메시지는 엑셀 실패 응답에 나갈 수 있으므로 공급자 이름과 상태만 담는다. 원인(URL·응답 본문)은 붙이지 않는다.
  */
 internal fun <T : Any> RestClient.RequestHeadersSpec<*>.fetch(
-    provider: String,
+    guard: ClientResilience.Guard,
     type: ParameterizedTypeReference<T>,
     notFoundAsNull: Boolean = false,
-): T? =
-    try {
-        retrieve().body(type) ?: error("$provider 서비스 응답 형식 오류")
+): T? {
+    val provider = guard.provider
+    return try {
+        guard.run { retrieve().body(type) } ?: error("$provider 서비스 응답 형식 오류")
     } catch (e: RestClientResponseException) {
         if (notFoundAsNull && e.statusCode.value() == 404) null else error("$provider 서비스 응답 오류(HTTP ${e.statusCode.value()})")
     } catch (e: ResourceAccessException) {
@@ -120,9 +123,10 @@ internal fun <T : Any> RestClient.RequestHeadersSpec<*>.fetch(
     } catch (e: RestClientException) {
         error("$provider 서비스 응답 형식 오류")
     }
+}
 
-internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchOrNull(provider: String): T? =
-    fetch(provider, object : ParameterizedTypeReference<T>() {}, notFoundAsNull = true)
+internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchOrNull(guard: ClientResilience.Guard): T? =
+    fetch(guard, object : ParameterizedTypeReference<T>() {}, notFoundAsNull = true)
 
-internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchRequired(provider: String): T =
-    fetch(provider, object : ParameterizedTypeReference<T>() {})!!
+internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchRequired(guard: ClientResilience.Guard): T =
+    fetch(guard, object : ParameterizedTypeReference<T>() {})!!

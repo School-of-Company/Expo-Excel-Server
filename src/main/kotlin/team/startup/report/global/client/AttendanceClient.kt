@@ -12,6 +12,7 @@ import java.util.Optional
  */
 class AttendanceClient(
     private val http: RestClient?,
+    private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     /** 행사가 없으면 null(공급자 404). 기간 검증은 호출자가 먼저 하므로 공급자 400은 계약 오류로 보고 실패다. */
     fun entryRecordPage(
@@ -32,7 +33,7 @@ class AttendanceClient(
                     .queryParam("page", page)
                     .queryParam("size", size)
                     .build(expoId)
-            }.fetchOrNull(NAME)
+            }.fetchOrNull(resilience.read)
     }
 
     /**
@@ -47,7 +48,7 @@ class AttendanceClient(
         return client
             .get()
             .uri("/internal/program-attendances/{type}/{programId}", programType.name.lowercase(), programId)
-            .fetchRequired(NAME)
+            .fetchRequired(resilience.read)
     }
 
     companion object {
