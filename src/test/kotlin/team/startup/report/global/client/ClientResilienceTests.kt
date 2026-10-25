@@ -145,4 +145,16 @@ class ClientResilienceTests :
 
             userResilience.state shouldBe CircuitBreaker.State.OPEN
         }
+
+        "재시도해도 사용자 요청 1건은 집계 1건이라 10번째 요청에서 열린다" {
+            val client = userClient()
+            user.close()
+
+            repeat(9) {
+                shouldThrow<IllegalStateException> { client.trainee(1) }
+                userResilience.state shouldBe CircuitBreaker.State.CLOSED
+            }
+            shouldThrow<IllegalStateException> { client.trainee(1) }
+            userResilience.state shouldBe CircuitBreaker.State.OPEN
+        }
     })

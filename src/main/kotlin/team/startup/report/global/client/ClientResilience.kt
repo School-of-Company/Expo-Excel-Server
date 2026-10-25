@@ -17,6 +17,7 @@ import java.time.Duration
  * - 회로가 열리면 공급자를 부르지 않고 바로 [IllegalStateException]으로 실패한다. 기존 공급자 장애(연결 실패·5xx)와 같은 종류라서
  *   엑셀 서비스가 지금처럼 502로 바꾼다. 페이지를 돌던 중 열려도 파일 없이 그 요청 하나만 깨끗이 실패한다.
  * - 재시도는 [read](멱등한 GET)에서만, 즉시 실패(타임아웃이 아닌 연결 실패·504 아닌 5xx)에 1회다. [write]는 재시도하지 않는다.
+ *   차단기가 재시도 바깥이라 요청 1건은 재시도 횟수와 관계없이 집계 1건이다(마지막 시도의 결과). 열린 회로는 재시도하지 않는다.
  *   커서·snapshotAt 페이지 조회는 같은 요청을 다시 보내도 같은 결과라 재시도해도 된다.
  */
 class ClientResilience(
@@ -37,9 +38,15 @@ class ClientResilience(
         val provider: String get() = this@ClientResilience.provider
 
         fun <T> run(block: () -> T): T {
-            val guarded = { breaker.executeSupplier(block) }
+            // 차단기가 재시도 바깥이다: 재시도를 거친 최종 결과만 1건으로 집계하고, 회로가 열려 있으면 시도 자체를 하지 않는다
+            val attempt: () -> T =
+                if (retry == null) {
+                    block
+                } else {
+                    { retry.executeSupplier(block) }
+                }
             return try {
-                if (retry == null) guarded() else retry.executeSupplier(guarded)
+                breaker.executeSupplier(attempt)
             } catch (e: CallNotPermittedException) {
                 error("$provider 서비스 호출 차단(회로 열림)")
             }
