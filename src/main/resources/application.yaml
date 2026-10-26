@@ -27,6 +27,11 @@ eureka:
   client:
     enabled: false
 
+# 요청 1건당 접근 로그 1줄(module=HttpAccess). 끄려면 LOGGING_HTTP_ACCESS_ENABLED=false
+logging:
+  http-access:
+    enabled: ${LOGGING_HTTP_ACCESS_ENABLED:true}
+
 swagger:
   enabled: ${SWAGGER_ENABLED:false}
   include-internal: ${SWAGGER_INCLUDE_INTERNAL:false}
