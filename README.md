@@ -76,6 +76,7 @@ Expo 서비스 공통 로그 표준입니다(Spring·Nest 모두 같음). Expo-M
 - stdout의 모든 줄은 JSON 객체 하나입니다(`logback-spring.xml`, `LogstashEncoder`). 필수 키는 `@timestamp`(ISO-8601/RFC3339), `level`(대문자 `TRACE`/`DEBUG`/`INFO`/`WARN`/`ERROR`), `service`(Eureka 앱 이름 `spring.application.name`), `module`, `message`이고 그 밖의 키(MDC 값, `logger_name`, `stack_trace`)는 더 붙어도 됩니다. 그 외의 출력은 stdout에 두지 않습니다(Spring 배너 끔, Logback 상태 경고가 나오면 안 됨).
 - 수집 파이프라인은 이 키 이름만 읽고 서비스별 fallback이 없습니다. 로그가 안 잡히거나 필드가 맞지 않으면 파이프라인에 파싱 fallback을 더하지 말고 서비스의 로그 출력을 고칩니다.
 - `module`은 `ModuleNameConverter`가 로거 이름에서 만들고 호출부에서 넣지 않습니다. `team.startup.report.{domain|global}.<x>...`는 `<x>`, 그 밖에는 로거 이름의 바로 위 패키지입니다. Nest 서비스는 클래스별 로거 컨텍스트를 그대로 씁니다(`nestjs-pino` `renameContext: 'module'`).
+- HTTP 요청은 1건당 접근 로그 1줄을 `module=HttpAccess`로 남깁니다(`HttpAccessLogFilter`). 메시지는 `<METHOD> <경로> status: <상태> (<ms>ms)`(예: `GET /excel/standard/{expo_id} status: 200 (12ms)`)이고, 경로는 매칭된 라우트 템플릿, 없으면(보안 거절·404) 쿼리를 뺀 URI 200자까지입니다. 쿼리·헤더·쿠키·본문은 남기지 않습니다. 레벨은 4xx `WARN`, 5xx `ERROR`, 그 밖 `INFO`이고 클라이언트가 끊으면 `499` `ERROR`입니다. `/actuator/**`와 Swagger 경로는 남기지 않습니다. 선택 환경 변수 `LOGGING_HTTP_ACCESS_ENABLED=false`로 끕니다(기본 `true`).
 - `local` 프로필에서만 같은 JSON을 `${EXPO_LOG_DIR:-~/.expo/logs}/<service>/app.log`에도 써서 로컬 Loki가 파일을 tail합니다. 운영은 stdout만 쓰고(pm2가 받음) 로그 파일 설정을 더하지 않습니다.
 
 ## GitHub
