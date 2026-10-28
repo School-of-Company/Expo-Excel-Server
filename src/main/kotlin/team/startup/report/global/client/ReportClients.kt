@@ -150,19 +150,25 @@ private class JdkClient(
         request.headers().forEach { (name, values) -> outgoing.headers.addAll(name, values.toList()) }
         request.body()?.let { outgoing.body.write(it) }
         val response = outgoing.execute()
-        return Response
-            .builder()
-            .request(request)
-            .status(response.statusCode.value())
-            .reason(response.statusText)
-            .headers(buildMap { response.headers.forEach { name, values -> put(name, values) } })
-            // 본문 스트림을 닫으면 타임아웃 감시도 끝난다(Feign이 디코딩 후 닫는다)
-            .body(
-                response.body,
-                response.headers.contentLength
-                    .takeIf { it in 0..Int.MAX_VALUE }
-                    ?.toInt(),
-            ).build()
+        return try {
+            Response
+                .builder()
+                .request(request)
+                .status(response.statusCode.value())
+                .reason(response.statusText)
+                .headers(buildMap { response.headers.forEach { name, values -> put(name, values) } })
+                // 본문 스트림을 닫으면 타임아웃 감시도 끝난다(Feign이 디코딩 후 닫는다)
+                .body(
+                    response.body,
+                    response.headers.contentLength
+                        .takeIf { it in 0..Int.MAX_VALUE }
+                        ?.toInt(),
+                ).build()
+        } catch (e: Exception) {
+            // Feign에 넘기기 전에 실패하면 닫을 주체가 없어 연결이 남는다
+            response.close()
+            throw e
+        }
     }
 }
 
