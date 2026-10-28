@@ -19,6 +19,7 @@ import team.startup.report.domain.excel.presentation.controller.ExcelController
 import team.startup.report.domain.excel.presentation.controller.ExcelDownloadController
 import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
 import team.startup.report.domain.excel.presentation.controller.PublicSurveyExcelController
+import team.startup.report.global.client.RequestDeadline
 import team.startup.report.global.client.expo.ExpoClient
 import team.startup.report.global.client.user.TraineeDetail
 import team.startup.report.global.client.user.UserClient
@@ -56,6 +57,8 @@ class ExcelAccessInterceptor(
         ) {
             return true
         }
+        // 권한 확인 호출보다 먼저 정한다. 5개 엑셀 컨트롤러가 모두 이 인터셉터를 지난다
+        RequestDeadline.start(request)
         val auth =
             SecurityContextHolder.getContext().authentication as? JwtAuthenticationToken
                 ?: throw ExpectedException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.")
