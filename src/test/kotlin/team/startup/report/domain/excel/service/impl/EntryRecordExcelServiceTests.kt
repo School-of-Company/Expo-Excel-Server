@@ -8,6 +8,7 @@ import io.kotest.matchers.string.shouldNotContain
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpStatus
+import team.startup.report.domain.excel.renderer.participationLabel
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.global.client.AttendanceClient
 import team.startup.report.global.client.StubProvider

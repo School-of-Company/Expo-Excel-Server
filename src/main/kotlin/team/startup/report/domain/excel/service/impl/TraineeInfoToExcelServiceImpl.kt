@@ -2,6 +2,7 @@ package team.startup.report.domain.excel.service.impl
 
 import org.springframework.stereotype.Service
 import org.springframework.web.util.UriUtils
+import team.startup.report.domain.excel.renderer.renderTrainees
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.TraineeInfoToExcelService
