@@ -4,6 +4,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.util.UriUtils
+import team.startup.report.domain.excel.renderer.EntryNames
+import team.startup.report.domain.excel.renderer.renderEntryRecords
+import team.startup.report.domain.excel.service.EntryRecordExcelService
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.global.client.AttendanceClient
 import team.startup.report.global.client.EntryRecord
@@ -20,13 +23,13 @@ import java.time.format.DateTimeFormatter
  * 한 페이지라도 실패하면 부분 결과로 파일을 만들지 않는다. 이름을 찾지 못한 대상은 빈 칸이다. 이름·토큰은 로그에 남기지 않는다.
  */
 @Service
-class EntryRecordExcelService(
+class EntryRecordExcelServiceImpl(
     private val attendance: AttendanceClient,
     private val user: UserClient,
-) {
+) : EntryRecordExcelService {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun execute(
+    override fun execute(
         expoId: String,
         from: LocalDate?,
         to: LocalDate?,

@@ -8,6 +8,7 @@ import io.kotest.matchers.string.shouldNotContain
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpStatus
+import team.startup.report.domain.excel.renderer.participationLabel
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.global.client.AttendanceClient
 import team.startup.report.global.client.StubProvider
@@ -34,12 +35,12 @@ class EntryRecordExcelServiceTests :
     StringSpec({
         lateinit var attendance: StubProvider
         lateinit var user: StubProvider
-        lateinit var service: EntryRecordExcelService
+        lateinit var service: EntryRecordExcelServiceImpl
 
         beforeTest {
             attendance = StubProvider(ATTENDANCE_TOKEN)
             user = StubProvider(USER_TOKEN)
-            service = EntryRecordExcelService(AttendanceClient(attendance.client()), UserClient(user.client()))
+            service = EntryRecordExcelServiceImpl(AttendanceClient(attendance.client()), UserClient(user.client()))
         }
         afterTest { listOf(attendance, user).forEach(StubProvider::close) }
 
@@ -267,7 +268,7 @@ class EntryRecordExcelServiceTests :
         }
 
         "참여 서비스 연결이 설정되지 않았으면 503이다" {
-            val unconfigured = EntryRecordExcelService(AttendanceClient(null), UserClient(user.client()))
+            val unconfigured = EntryRecordExcelServiceImpl(AttendanceClient(null), UserClient(user.client()))
             shouldThrow<ExpectedException> { unconfigured.execute("e1", null, null) }.status shouldBe HttpStatus.SERVICE_UNAVAILABLE
         }
     })

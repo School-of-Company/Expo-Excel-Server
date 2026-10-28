@@ -1,4 +1,4 @@
-package team.startup.report.domain.excel.presentation
+package team.startup.report.domain.excel.presentation.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -9,36 +9,31 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import team.startup.report.domain.excel.service.impl.EntryRecordExcelService
+import team.startup.report.domain.excel.service.PublicSurveyExcelService
 import team.startup.report.global.exception.ErrorResponse
-import team.startup.report.global.exception.ExpectedException
 import java.io.ByteArrayOutputStream
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
-class EntryRecordExcelController(
-    private val service: EntryRecordExcelService,
+class PublicSurveyExcelController(
+    private val service: PublicSurveyExcelService,
 ) {
     @Operation(
-        summary = "입장 기록 엑셀 다운로드",
+        summary = "공개 만족도 조사 응답 엑셀 다운로드",
         description =
-            "참여 서비스의 입장·재입장·퇴장 기록을 발생 시각 순으로 출력하고, 간편입장 집계는 별도 시트에 담습니다. " +
-                "from·to(yyyy-MM-dd, 둘 다 포함)는 함께 주거나 모두 생략(박람회 전체 기간)합니다. 최대 300,000건입니다.",
+            "행사 공통 공개 설문(직업과 무관한 1개)의 익명 응답을 제출 순으로 응답 1건 = 1행 출력합니다. " +
+                "참가자 명단과 연결하지 않으며 전화번호·경품 정보는 담지 않습니다. 최대 100,000건입니다.",
     )
     @ApiResponses(
         value = [
             ApiResponse(
                 responseCode = "200",
-                description = "XLSX 파일(no-store). 기록이 없어도 머리글만 있는 파일입니다.",
+                description = "XLSX 파일(no-store). 응답이 없어도 머리글만 있는 파일입니다.",
                 content = [
                     Content(
                         mediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -47,51 +42,42 @@ class EntryRecordExcelController(
                 ],
             ),
             ApiResponse(
-                responseCode = "400",
-                description = "날짜 형식 오류·from만 또는 to만 지정·from이 to보다 늦음",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-            ApiResponse(
                 responseCode = "401",
                 description = "JWT 누락·만료·검증 실패",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "403",
-                description = "관리자 역할 없음",
+                description = "관리자 역할 또는 행사 권한 없음",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "404",
-                description = "행사 없음",
+                description = "행사 또는 행사의 공개 설문 없음",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "413",
-                description = "기록이 300,000건 초과",
+                description = "응답이 100,000건 초과",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "502",
-                description = "참여·유저 서비스 장애 또는 응답 오류(부분 결과로 파일을 만들지 않음)",
+                description = "설문 서비스 장애·응답 형식/건수 불일치(부분 결과로 파일을 만들지 않음)",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "503",
-                description = "참여 서비스 연결 미설정",
+                description = "설문 서비스 연결 미설정",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
         ],
     )
-    @GetMapping("/excel/entry-records/{expo_id}")
-    fun entryRecordsToExcel(
+    @GetMapping("/excel/public-surveys/{expo_id}")
+    fun publicSurveyAnswersToExcel(
         @Parameter(description = "박람회 ID", example = "11111111-1111-1111-1111-111111111111") @PathVariable("expo_id") expoId: String,
-        @Parameter(description = "입장 날짜 시작(포함, yyyy-MM-dd). to와 함께 지정", example = "2026-10-19")
-        @RequestParam("from", required = false) from: String?,
-        @Parameter(description = "입장 날짜 끝(포함, yyyy-MM-dd). from과 함께 지정", example = "2026-10-20")
-        @RequestParam("to", required = false) to: String?,
     ): ResponseEntity<ByteArray> {
-        val file = service.execute(expoId, from?.toDate("from"), to?.toDate("to"))
+        val file = service.execute(expoId)
         val bytes =
             file.workbook.use { workbook ->
                 try {
@@ -110,11 +96,4 @@ class EntryRecordExcelController(
             .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .body(bytes)
     }
-
-    private fun String.toDate(name: String): LocalDate =
-        try {
-            LocalDate.parse(this)
-        } catch (_: DateTimeParseException) {
-            throw ExpectedException(HttpStatus.BAD_REQUEST, "$name 은 yyyy-MM-dd 형식이어야 합니다.")
-        }
 }

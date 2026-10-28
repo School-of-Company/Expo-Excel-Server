@@ -75,11 +75,11 @@ private fun ExcelFile.read() =
 class PublicSurveyExcelServiceTests :
     StringSpec({
         lateinit var form: StubProvider
-        lateinit var service: PublicSurveyExcelService
+        lateinit var service: PublicSurveyExcelServiceImpl
 
         beforeTest {
             form = StubProvider(TOKEN)
-            service = PublicSurveyExcelService(FormClient(form.client()))
+            service = PublicSurveyExcelServiceImpl(FormClient(form.client()))
         }
         afterTest { form.close() }
 
@@ -172,7 +172,7 @@ class PublicSurveyExcelServiceTests :
         }
 
         "연결이 설정되지 않으면 503이다" {
-            val unconfigured = PublicSurveyExcelService(FormClient(null))
+            val unconfigured = PublicSurveyExcelServiceImpl(FormClient(null))
             shouldThrow<ExpectedException> { unconfigured.execute(EXPO) }.status shouldBe HttpStatus.SERVICE_UNAVAILABLE
         }
 

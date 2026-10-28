@@ -13,11 +13,11 @@ import org.springframework.web.servlet.HandlerInterceptor
 import org.springframework.web.servlet.HandlerMapping
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
-import team.startup.report.domain.excel.presentation.EntryRecordExcelController
-import team.startup.report.domain.excel.presentation.ExcelController
-import team.startup.report.domain.excel.presentation.ExcelDownloadController
-import team.startup.report.domain.excel.presentation.ProgramAttendanceExcelController
-import team.startup.report.domain.excel.presentation.PublicSurveyExcelController
+import team.startup.report.domain.excel.presentation.controller.EntryRecordExcelController
+import team.startup.report.domain.excel.presentation.controller.ExcelController
+import team.startup.report.domain.excel.presentation.controller.ExcelDownloadController
+import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
+import team.startup.report.domain.excel.presentation.controller.PublicSurveyExcelController
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.TraineeDetail
 import team.startup.report.global.client.UserClient

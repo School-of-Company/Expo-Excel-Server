@@ -4,7 +4,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.util.UriUtils
+import team.startup.report.domain.excel.renderer.renderPublicSurveyAnswers
 import team.startup.report.domain.excel.service.ExcelFile
+import team.startup.report.domain.excel.service.PublicSurveyExcelService
 import team.startup.report.global.client.FormClient
 import team.startup.report.global.client.PublicSurveyAnswer
 import team.startup.report.global.client.PublicSurveyAnswerPage
@@ -19,12 +21,12 @@ import java.time.format.DateTimeFormatter
  * 한 페이지라도 실패하면 부분 결과로 파일을 만들지 않는다. 답변·커서·토큰은 로그에 남기지 않는다.
  */
 @Service
-class PublicSurveyExcelService(
+class PublicSurveyExcelServiceImpl(
     private val form: FormClient,
-) {
+) : PublicSurveyExcelService {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun execute(expoId: String): ExcelFile =
+    override fun execute(expoId: String): ExcelFile =
         try {
             val (first, answers) = readAll(expoId)
             val now = OffsetDateTime.now(SEOUL)

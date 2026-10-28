@@ -1,4 +1,4 @@
-package team.startup.report.domain.excel.service.impl
+package team.startup.report.domain.excel.renderer
 
 import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
