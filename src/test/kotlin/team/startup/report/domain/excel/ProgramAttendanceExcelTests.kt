@@ -210,6 +210,26 @@ class ProgramAttendanceExcelTests {
     }
 
     @Test
+    fun `일반 회차 일시가 Expo UTC Instant로 와도 KST 예정 시각으로 출력한다`() {
+        // Expo#196 이후 실제 응답 형식(#107)
+        expo.on(
+            "GET /internal/expo/$EVENT/standard-programs/7",
+            body = mapOf("id" to 7, "title" to "골든벨", "startedAt" to "2026-10-31T01:00:00Z", "endedAt" to "2026-10-31T02:00:00Z"),
+        )
+        snapshot(listOf(app(1, participant = 1)))
+        people(listOf(person(1, "가참가자", null)))
+        attendance.on("GET /internal/program-attendances/standard/7", body = emptyList<Any>())
+
+        val response = send("STANDARD", 7)
+
+        response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
+            book.getSheet("실제 출석 결과").values()[1].subList(0, 5) shouldBe
+                listOf("일반", "7", "골든벨", "2026-10-31 10:00", "2026-10-31 11:00")
+        }
+    }
+
+    @Test
     fun `신청과 출석이 모두 없으면 머리글만 있는 두 시트다`() {
         snapshot(emptyList())
         people(emptyList())

@@ -26,6 +26,7 @@ import team.startup.report.global.client.DetailPage
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.client.UserClient
+import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import team.startup.report.global.exception.ExpectedException
 import java.time.Instant
 import java.time.ZoneId
@@ -207,10 +208,7 @@ class ExcelDownloadService(
             (filter.status == null || row.status in filter.status) &&
             // q·occupation은 User 원천 조건이라 여기서 다시 확인할 수 없다. eventDate는 신청 당시 운영 시작일이다
             (
-                filter.eventDate == null || row.definition
-                    .path("startedAt")
-                    .asString("")
-                    .take(10) == filter.eventDate.toString()
+                filter.eventDate == null || scheduleDate(row.definition.path("startedAt").asString("")) == filter.eventDate.toString()
             ) &&
             (filter.from == null || row.createdAt >= filter.from) &&
             (filter.until == null || row.createdAt < filter.until) &&
@@ -221,6 +219,12 @@ class ExcelDownloadService(
                         .asString("")
                         .contains(filter.search.trim(), ignoreCase = true)
             )
+
+    // 운영 시작의 KST 날짜("yyyy-MM-dd"). "2026-10-30T23:00:00Z"는 KST로 10/31 08:00이라 "2026-10-31"이다.
+    // 날짜만 있거나("2026-10-31") 빈 값처럼 일시로 해석되지 않으면, 이 변경 전과 같이 문자열 앞 10자를 날짜로 쓴다
+    // (예: "2026-10-31" → "2026-10-31", "" → "")
+    private fun scheduleDate(startedAt: String): String =
+        parseProgramDateTimeOrNull(startedAt)?.toLocalDate()?.toString() ?: startedAt.take(10)
 
     private fun validateTargets(
         request: DownloadRequest,

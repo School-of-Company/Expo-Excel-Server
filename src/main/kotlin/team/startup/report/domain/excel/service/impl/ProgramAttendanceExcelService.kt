@@ -16,9 +16,9 @@ import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.ProgramAttendanceRecord
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.client.UserClient
+import team.startup.report.global.common.time.PROGRAM_SCHEDULE
 import team.startup.report.global.common.time.parseProgramDateTime
 import team.startup.report.global.exception.ExpectedException
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 /**
@@ -160,7 +160,6 @@ internal fun combine(
     return confirmed.sortedWith(order) to mismatched.sortedWith(order)
 }
 
-private val SCHEDULE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 private val STATUS_LABELS =
     mapOf(ApplicationStatus.CONFIRMED to "확정", ApplicationStatus.WAITING to "대기", ApplicationStatus.CANCELLED to "취소")
 
@@ -182,8 +181,8 @@ fun renderProgramAttendance(
             if (programType == SessionType.STANDARD) "일반" else "연수",
             programId.toString(),
             program.title,
-            program.startedAt?.let { parseProgramDateTime(it).format(SCHEDULE) },
-            program.endedAt?.let { parseProgramDateTime(it).format(SCHEDULE) },
+            program.startedAt?.let { parseProgramDateTime(it).format(PROGRAM_SCHEDULE) },
+            program.endedAt?.let { parseProgramDateTime(it).format(PROGRAM_SCHEDULE) },
         )
     listOf("실제 출석 결과" to confirmed, "신청 불일치 출석" to mismatched).forEach { (name, rows) ->
         val sheet = createSheet(name).apply { defaultColumnWidth = 18 }
