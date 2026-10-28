@@ -4,8 +4,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.util.UriUtils
 import team.startup.report.global.client.ClientResilience
+import team.startup.report.global.client.encodedCursor
 import team.startup.report.global.client.fetchOrNull
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
@@ -24,9 +24,7 @@ class FormClient(
         cursor: String?,
     ): PublicSurveyAnswerPage? {
         val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "설문 서비스 연결이 설정되지 않았습니다.")
-        // 커서는 불투명 문자열이라 '+'·'/'·'=' 등도 그대로 전달되도록 전부 인코딩한다(Feign은 쿼리의 '/'를 인코딩하지 않고, 이미 인코딩된 값은 다시 인코딩하지 않는다)
-        val encodedCursor = cursor?.let { UriUtils.encode(it, Charsets.UTF_8) }
-        return resilience.read.fetchOrNull { client.publicSurveyAnswerPage(expoId, encodedCursor, PAGE_SIZE) }
+        return resilience.read.fetchOrNull { client.publicSurveyAnswerPage(expoId, cursor?.let(::encodedCursor), PAGE_SIZE) }
     }
 
     companion object {

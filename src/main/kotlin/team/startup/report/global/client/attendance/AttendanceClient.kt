@@ -28,7 +28,7 @@ class AttendanceClient(
         size: Int,
     ): EntryRecordPage? {
         val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "입장 기록 서비스 연결이 설정되지 않았습니다.")
-        return resilience.read.fetchOrNull { client.entryRecordPage(expoId, from?.toString(), to?.toString(), page, size) }
+        return resilience.read.fetchOrNull { client.entryRecordPage(expoId, from, to, page, size) }
     }
 
     /**
@@ -52,12 +52,12 @@ class AttendanceClient(
 }
 
 interface AttendanceApi {
-    // from·to가 null이면 쿼리에서 빠진다. 날짜는 ISO(yyyy-MM-dd) 문자열로 넘긴다(기본 변환은 지역 형식이다)
+    // from·to가 null이면 쿼리에서 빠진다
     @GetMapping("/internal/expos/{expoId}/entry-records")
     fun entryRecordPage(
         @PathVariable("expoId") expoId: String,
-        @RequestParam("from", required = false) from: String?,
-        @RequestParam("to", required = false) to: String?,
+        @RequestParam("from", required = false) from: LocalDate?,
+        @RequestParam("to", required = false) to: LocalDate?,
         @RequestParam("page") page: Int,
         @RequestParam("size") size: Int,
     ): EntryRecordPage?

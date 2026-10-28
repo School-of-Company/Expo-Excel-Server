@@ -14,10 +14,12 @@ import org.springframework.cloud.openfeign.support.SpringMvcContract
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.format.datetime.standard.DateTimeFormatterRegistrar
 import org.springframework.format.support.DefaultFormattingConversionService
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
+import org.springframework.web.util.UriUtils
 import team.startup.report.global.client.application.ApplicationClient
 import team.startup.report.global.client.attendance.AttendanceClient
 import team.startup.report.global.client.expo.ExpoClient
@@ -98,9 +100,22 @@ class ReportClientsConfig(
 
 private const val INTERNAL_TOKEN_HEADER = "X-Internal-Token"
 
-// 기본 계약은 인코딩된 '/'(%2F)를 '/'로 되돌린다. 경로 변수·쿼리 값의 '/'를 인코딩된 채로 보낸다
+// 기본 계약은 인코딩된 '/'(%2F)를 '/'로 되돌린다. 경로 변수·쿼리 값의 '/'를 인코딩된 채로 보낸다.
+// 날짜 인자는 ISO(yyyy-MM-dd)로 보낸다(기본 형식 변환은 지역 형식이다)
 private fun contract() =
-    SpringMvcContract(emptyList(), DefaultFormattingConversionService(), FeignClientProperties().apply { isDecodeSlash = false })
+    SpringMvcContract(
+        emptyList(),
+        DefaultFormattingConversionService(
+            false,
+        ).also { DateTimeFormatterRegistrar().apply { setUseIsoFormat(true) }.registerFormatters(it) },
+        FeignClientProperties().apply { isDecodeSlash = false },
+    )
+
+/**
+ * 공급자가 준 불투명 커서를 쿼리에 넣기 전에 한 번 전부 인코딩한다(기존 RestClient의 URI 변수 인코딩과 같다).
+ * Feign은 쿼리의 '/'를 인코딩하지 않고, '%XX'가 있으면 이미 인코딩된 값으로 보고 그대로 둔다.
+ */
+internal fun encodedCursor(cursor: String): String = UriUtils.encode(cursor, Charsets.UTF_8)
 
 /**
  * 공급자별 Feign 클라이언트. `@FeignClient` 스캔 대신 여기서 만들어 선택 공급자는 설정이 없으면 만들지 않는다(null).
