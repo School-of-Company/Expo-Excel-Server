@@ -7,6 +7,7 @@ import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
 import team.startup.report.domain.excel.presentation.dto.request.DownloadScope
 import team.startup.report.domain.excel.presentation.dto.request.ExcelTemplate
 import team.startup.report.domain.excel.service.ExcelFile
+import team.startup.report.domain.excel.service.ProgramAttendanceExcelService
 import team.startup.report.global.client.ApplicationFilter
 import team.startup.report.global.client.ApplicationRow
 import team.startup.report.global.client.ApplicationSort
@@ -28,15 +29,15 @@ import java.util.UUID
  * 원천 하나라도 실패하면 파일을 만들지 않는다. 이름·전화번호는 로그에 남기지 않는다.
  */
 @Service
-class ProgramAttendanceExcelService(
-    private val downloads: ExcelDownloadService,
+class ProgramAttendanceExcelServiceImpl(
+    private val downloads: ExcelDownloadServiceImpl,
     private val attendance: AttendanceClient,
     private val user: UserClient,
     private val expo: ExpoClient,
-) {
+) : ProgramAttendanceExcelService {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    fun execute(
+    override fun execute(
         expoId: UUID,
         programType: SessionType,
         programId: Long,

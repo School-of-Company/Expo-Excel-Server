@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import team.startup.report.domain.excel.service.impl.EntryRecordExcelService
+import team.startup.report.domain.excel.service.EntryRecordExcelService
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
 import java.io.ByteArrayOutputStream

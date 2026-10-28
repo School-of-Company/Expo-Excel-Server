@@ -20,8 +20,8 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
-import team.startup.report.domain.excel.service.impl.ExcelDownloadService
-import team.startup.report.domain.excel.service.impl.ProgramAttendanceExcelService
+import team.startup.report.domain.excel.service.impl.ExcelDownloadServiceImpl
+import team.startup.report.domain.excel.service.impl.ProgramAttendanceExcelServiceImpl
 import team.startup.report.global.client.ApplicationClient
 import team.startup.report.global.client.AttendanceClient
 import team.startup.report.global.client.ExpoClient
@@ -46,8 +46,8 @@ private val HEADERS =
 @WebMvcTest(ProgramAttendanceExcelController::class)
 @Import(
     team.startup.report.global.security.ExcelSecurityConfig::class,
-    ExcelDownloadService::class,
-    ProgramAttendanceExcelService::class,
+    ExcelDownloadServiceImpl::class,
+    ProgramAttendanceExcelServiceImpl::class,
     ProgramAttendanceExcelTests.ClientConfig::class,
 )
 class ProgramAttendanceExcelTests {

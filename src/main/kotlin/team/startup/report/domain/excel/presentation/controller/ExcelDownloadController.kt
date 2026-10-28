@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
-import team.startup.report.domain.excel.service.impl.ExcelDownloadService
+import team.startup.report.domain.excel.service.ExcelDownloadService
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
 import java.io.ByteArrayOutputStream

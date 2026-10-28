@@ -6,6 +6,7 @@ import org.springframework.web.util.UriUtils
 import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
 import team.startup.report.domain.excel.presentation.dto.request.DownloadScope
 import team.startup.report.domain.excel.presentation.dto.request.ExcelTemplate
+import team.startup.report.domain.excel.service.ExcelDownloadService
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.domain.excel.service.ProgramApplicationColumns
@@ -39,12 +40,12 @@ private val APPLIED_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").with
 private val LEDGER_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").withZone(ZoneId.of("Asia/Seoul"))
 
 @Service
-class ExcelDownloadService(
+class ExcelDownloadServiceImpl(
     private val application: ApplicationClient,
     private val user: UserClient,
     private val expo: ExpoClient,
-) {
-    fun execute(
+) : ExcelDownloadService {
+    override fun execute(
         expoId: UUID,
         request: DownloadRequest,
     ): ExcelFile {
