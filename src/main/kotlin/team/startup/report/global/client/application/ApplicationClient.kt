@@ -1,10 +1,14 @@
 package team.startup.report.global.client.application
 
-import org.springframework.core.ParameterizedTypeReference
 import org.springframework.http.HttpStatus
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientResponseException
+import org.springframework.http.MediaType
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestParam
 import team.startup.report.global.client.ClientResilience
+import team.startup.report.global.client.ProviderStatusException
 import team.startup.report.global.client.fetchRequired
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
@@ -12,87 +16,66 @@ import java.util.UUID
 
 /** Expo-Application-Server 내부 조회(PR #23). 공급자는 ID 오름차순으로 주지만 호출자가 applicationId로 다시 정렬한다. */
 class ApplicationClient(
-    private val http: RestClient,
+    private val api: ApplicationApi,
     private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     fun fieldVisits(
         expoId: UUID,
         visitDate: LocalDate?,
         cursor: UUID?,
-    ): FieldVisitPage =
-        http
-            .get()
-            .uri {
-                it
-                    .path("/internal/expos/{expoId}/field-visits")
-                    .apply {
-                        if (visitDate != null) queryParam("visitDate", visitDate)
-                        if (cursor != null) queryParam("cursor", cursor)
-                    }.queryParam("size", 100)
-                    .build(expoId)
-            }.fetchRequired(resilience.read)
+    ): FieldVisitPage = resilience.read.fetchRequired { api.fieldVisits(expoId.toString(), visitDate?.toString(), cursor?.toString(), 100) }
 
     fun selectedTargets(
         expoId: UUID,
         applicationIds: List<UUID>,
     ): ApplicationSelection =
-        http
-            .post()
-            .uri(TARGET_PATH + "/selection", expoId)
-            .body(mapOf("applicationIds" to applicationIds))
-            .targetResponse(resilience.write)
+        resilience.write.targetResponse {
+            api.selectedTargets(
+                expoId.toString(),
+                mapOf("applicationIds" to applicationIds),
+            )
+        }
 
     fun createTargetSnapshot(
         expoId: UUID,
         filter: ApplicationFilter,
     ): ApplicationSnapshot =
-        http
-            .post()
-            .uri(TARGET_PATH, expoId)
-            .body(mapOf("filter" to filter, "limit" to 500))
-            .targetResponse(resilience.write, snapshotCreation = true)
+        resilience.write.targetResponse(snapshotCreation = true) {
+            api.createTargetSnapshot(expoId.toString(), mapOf("filter" to filter, "limit" to 500))
+        }
 
     fun nextTargetSnapshot(
         expoId: UUID,
         cursor: String,
-    ): ApplicationSnapshot =
-        http.get().uri { it.path(TARGET_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse(resilience.read)
+    ): ApplicationSnapshot = resilience.read.targetResponse { api.nextTargetSnapshot(expoId.toString(), cursor) }
 
     fun selectedPreregistrations(
         expoId: UUID,
         keys: List<String>,
-    ): PreregistrationSelection =
-        http
-            .post()
-            .uri(PREREGISTRATION_PATH + "/selection", expoId)
-            .body(mapOf("keys" to keys))
-            .targetResponse(resilience.write)
+    ): PreregistrationSelection = resilience.write.targetResponse { api.selectedPreregistrations(expoId.toString(), mapOf("keys" to keys)) }
 
     fun createPreregistrationSnapshot(
         expoId: UUID,
         filter: RegistrationFilter,
     ): PreregistrationSnapshot =
-        http
-            .post()
-            .uri(PREREGISTRATION_PATH, expoId)
-            .body(mapOf("filter" to filter, "limit" to 500))
-            .targetResponse(resilience.write, snapshotCreation = true)
+        resilience.write.targetResponse(snapshotCreation = true) {
+            api.createPreregistrationSnapshot(expoId.toString(), mapOf("filter" to filter, "limit" to 500))
+        }
 
     fun nextPreregistrationSnapshot(
         expoId: UUID,
         cursor: String,
-    ): PreregistrationSnapshot =
-        http.get().uri { it.path(PREREGISTRATION_PATH).queryParam("cursor", cursor).build(expoId) }.targetResponse(resilience.read)
+    ): PreregistrationSnapshot = resilience.read.targetResponse { api.nextPreregistrationSnapshot(expoId.toString(), cursor) }
 
-    private inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.targetResponse(
-        guard: ClientResilience.Guard,
+    private fun <T : Any> ClientResilience.Guard.targetResponse(
         snapshotCreation: Boolean = false,
+        call: () -> T?,
     ): T =
         try {
-            guard.run { retrieve().body(object : ParameterizedTypeReference<T>() {}) } ?: error("Application 대상 응답 없음")
-        } catch (e: RestClientResponseException) {
+            run(call) ?: error("Application 대상 응답 없음")
+        } catch (e: ProviderStatusException) {
             val status =
-                when (e.statusCode.value()) {
+                when (e.status) {
                     400 -> HttpStatus.BAD_REQUEST
 
                     404 -> HttpStatus.NOT_FOUND
@@ -111,23 +94,77 @@ class ApplicationClient(
 
     /** 프로그램의 일반 신청. 공급자는 프로그램 존재를 확인하지 않으므로 존재 확인은 Expo로 한다. */
     fun standardApplications(programId: Long): List<StandardApplication> =
-        http.get().uri("/internal/standard-program-applications/program/{programId}", programId).fetchRequired(resilience.read)
+        resilience.read.fetchRequired { api.standardApplications(programId) }
 
     fun trainingApplications(traineeIds: List<Long>): List<TrainingApplication> {
         require(traineeIds.size <= MAX_TRAINEE_IDS)
-        return http
-            .post()
-            .uri("/internal/training-program-applications/trainees")
-            .body(mapOf("traineeIds" to traineeIds))
-            .fetchRequired(resilience.write)
+        return resilience.write.fetchRequired { api.trainingApplications(mapOf("traineeIds" to traineeIds)) }
     }
 
     companion object {
         const val NAME = "Application"
         const val MAX_TRAINEE_IDS = 500
-        private const val TARGET_PATH = "/internal/expos/{expoId}/program-session-applications/report-targets"
-        private const val PREREGISTRATION_PATH = "/internal/expos/{expoId}/preregistrations/report-targets"
     }
+}
+
+private const val TARGET_PATH = "/internal/expos/{expoId}/program-session-applications/report-targets"
+private const val PREREGISTRATION_PATH = "/internal/expos/{expoId}/preregistrations/report-targets"
+
+/** null인 쿼리 값(visitDate·cursor)은 쿼리에서 빠진다. 날짜는 ISO(yyyy-MM-dd) 문자열로 넘긴다. */
+interface ApplicationApi {
+    @GetMapping("/internal/expos/{expoId}/field-visits")
+    fun fieldVisits(
+        @PathVariable("expoId") expoId: String,
+        @RequestParam("visitDate", required = false) visitDate: String?,
+        @RequestParam("cursor", required = false) cursor: String?,
+        @RequestParam("size") size: Int,
+    ): FieldVisitPage?
+
+    @PostMapping(TARGET_PATH + "/selection", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun selectedTargets(
+        @PathVariable("expoId") expoId: String,
+        @RequestBody body: Map<String, Any>,
+    ): ApplicationSelection?
+
+    @PostMapping(TARGET_PATH, consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun createTargetSnapshot(
+        @PathVariable("expoId") expoId: String,
+        @RequestBody body: Map<String, Any>,
+    ): ApplicationSnapshot?
+
+    @GetMapping(TARGET_PATH)
+    fun nextTargetSnapshot(
+        @PathVariable("expoId") expoId: String,
+        @RequestParam("cursor") cursor: String,
+    ): ApplicationSnapshot?
+
+    @PostMapping(PREREGISTRATION_PATH + "/selection", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun selectedPreregistrations(
+        @PathVariable("expoId") expoId: String,
+        @RequestBody body: Map<String, Any>,
+    ): PreregistrationSelection?
+
+    @PostMapping(PREREGISTRATION_PATH, consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun createPreregistrationSnapshot(
+        @PathVariable("expoId") expoId: String,
+        @RequestBody body: Map<String, Any>,
+    ): PreregistrationSnapshot?
+
+    @GetMapping(PREREGISTRATION_PATH)
+    fun nextPreregistrationSnapshot(
+        @PathVariable("expoId") expoId: String,
+        @RequestParam("cursor") cursor: String,
+    ): PreregistrationSnapshot?
+
+    @GetMapping("/internal/standard-program-applications/program/{programId}")
+    fun standardApplications(
+        @PathVariable("programId") programId: Long,
+    ): List<StandardApplication>?
+
+    @PostMapping("/internal/training-program-applications/trainees", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun trainingApplications(
+        @RequestBody body: Map<String, Any>,
+    ): List<TrainingApplication>?
 }
 
 data class StandardApplication(

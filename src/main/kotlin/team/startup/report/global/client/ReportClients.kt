@@ -84,7 +84,7 @@ class ReportClientsConfig(
     fun userClient() = UserClient(feign(UserClient.NAME, properties.user))
 
     @Bean
-    fun applicationClient() = ApplicationClient(restClient(properties.application))
+    fun applicationClient() = ApplicationClient(feign(ApplicationClient.NAME, properties.application))
 
     @Bean
     fun expoClient() = ExpoClient(feign(ExpoClient.NAME, properties.expo))
