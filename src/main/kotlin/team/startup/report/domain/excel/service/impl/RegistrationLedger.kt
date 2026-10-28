@@ -151,10 +151,11 @@ class RegistrationLedger(
             }
         val source = if (includeVisits) readFieldVisits(application, expoId, filter.visitDate) else FieldVisitData(emptyList(), emptyList())
         check(people.keys.containsAll(source.items.map { it.participantId }))
+        val selectedKeys = request.keys?.toHashSet()
         val visits =
             source.items.filter { visit ->
                 if (request.scope == DownloadScope.SELECTED) {
-                    visit.key in request.keys!!
+                    visit.key in selectedKeys!!
                 } else {
                     val person = people.getValue(visit.participantId)
                     (filter.fieldStatus == null || visit.status == filter.fieldStatus) &&
