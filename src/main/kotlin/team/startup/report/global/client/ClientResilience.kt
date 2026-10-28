@@ -1,5 +1,6 @@
 package team.startup.report.global.client
 
+import feign.RetryableException
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig
@@ -81,14 +82,32 @@ class ClientResilience(
                     .build(),
             )
 
+        // RetryableException은 연결 실패·타임아웃이다(Feign은 IOException을 이것으로 감싸고, 재시도 응답 판정은 ErrorDecoder가 대신한다)
         internal fun isTransientFailure(e: Throwable): Boolean =
-            e is ResourceAccessException || (e is RestClientResponseException && e.statusCode.is5xxServerError)
+            e is ResourceAccessException ||
+                (e is RestClientResponseException && e.statusCode.is5xxServerError) ||
+                e is RetryableException ||
+                (e is ProviderStatusException && e.status in 500..599)
 
         internal fun isImmediateFailure(e: Throwable): Boolean =
             when (e) {
-                is ResourceAccessException -> generateSequence<Throwable>(e) { it.cause }.none { it is HttpTimeoutException }
-                is RestClientResponseException -> e.statusCode.is5xxServerError && e.statusCode.value() != 504
-                else -> false
+                is ResourceAccessException, is RetryableException -> {
+                    generateSequence<Throwable>(
+                        e,
+                    ) { it.cause }.none { it is HttpTimeoutException }
+                }
+
+                is RestClientResponseException -> {
+                    e.statusCode.is5xxServerError && e.statusCode.value() != 504
+                }
+
+                is ProviderStatusException -> {
+                    e.status in 500..599 && e.status != 504
+                }
+
+                else -> {
+                    false
+                }
             }
     }
 }

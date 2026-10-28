@@ -1,7 +1,10 @@
 package team.startup.report.global.client.form
 
 import org.springframework.http.HttpStatus
-import org.springframework.web.client.RestClient
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.util.UriUtils
 import team.startup.report.global.client.ClientResilience
 import team.startup.report.global.client.fetchOrNull
 import team.startup.report.global.exception.ExpectedException
@@ -9,10 +12,10 @@ import tools.jackson.databind.JsonNode
 
 /**
  * Expo-Form-Server 내부 조회(Form #215). 행사 공통 공개 설문 응답을 (createdAt, id) 오름차순 커서 페이지로 받는다.
- * 주소·토큰은 선택 설정이라 [http]가 null이면(미설정) 호출 시 503이다. 응답에는 참가자 ID·이름·경품 전화번호가 없다.
+ * 주소·토큰은 선택 설정이라 [api]가 null이면(미설정) 호출 시 503이다. 응답에는 참가자 ID·이름·경품 전화번호가 없다.
  */
 class FormClient(
-    private val http: RestClient?,
+    private val api: FormApi?,
     private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     /** 행사에 공개 설문이 없으면 null(공급자 404). 커서는 공급자가 준 값을 그대로 넘기므로 공급자 400은 계약 오류로 보고 실패다. */
@@ -20,17 +23,10 @@ class FormClient(
         expoId: String,
         cursor: String?,
     ): PublicSurveyAnswerPage? {
-        val client = http ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "설문 서비스 연결이 설정되지 않았습니다.")
-        return client
-            .get()
-            .uri {
-                it
-                    .path("/internal/surveys/{expoId}/public-answers")
-                    // 커서는 불투명 문자열이라 템플릿 변수로 넘겨 '+'·'/'·'=' 등도 그대로 전달되도록 전부 인코딩한다
-                    .apply { if (cursor != null) queryParam("cursor", "{cursor}") }
-                    .queryParam("limit", PAGE_SIZE)
-                    .build(*listOfNotNull(expoId, cursor).toTypedArray())
-            }.fetchOrNull(resilience.read)
+        val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "설문 서비스 연결이 설정되지 않았습니다.")
+        // 커서는 불투명 문자열이라 '+'·'/'·'=' 등도 그대로 전달되도록 전부 인코딩한다(Feign은 쿼리의 '/'를 인코딩하지 않고, 이미 인코딩된 값은 다시 인코딩하지 않는다)
+        val encodedCursor = cursor?.let { UriUtils.encode(it, Charsets.UTF_8) }
+        return resilience.read.fetchOrNull { client.publicSurveyAnswerPage(expoId, encodedCursor, PAGE_SIZE) }
     }
 
     companion object {
@@ -39,6 +35,16 @@ class FormClient(
         // Form #215 계약의 limit 최대는 1000이다
         const val PAGE_SIZE = 1000
     }
+}
+
+interface FormApi {
+    // cursor가 null이면 쿼리에서 빠진다(처음부터)
+    @GetMapping("/internal/surveys/{expoId}/public-answers")
+    fun publicSurveyAnswerPage(
+        @PathVariable("expoId") expoId: String,
+        @RequestParam("cursor", required = false) cursor: String?,
+        @RequestParam("limit") limit: Int,
+    ): PublicSurveyAnswerPage?
 }
 
 data class PublicSurvey(

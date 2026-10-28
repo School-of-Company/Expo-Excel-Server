@@ -1,10 +1,20 @@
 package team.startup.report.global.client
 
+import feign.FeignException
+import feign.Request
+import feign.RetryableException
+import feign.Retryer
+import feign.http2client.Http2Client
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.cloud.openfeign.FeignClientBuilder
+import org.springframework.cloud.openfeign.FeignClientProperties
+import org.springframework.cloud.openfeign.support.SpringMvcContract
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.format.support.DefaultFormattingConversionService
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter
@@ -67,6 +77,7 @@ data class ReportClientsProperties(
 class ReportClientsConfig(
     private val properties: ReportClientsProperties,
     private val jsonMapper: JsonMapper,
+    private val context: ApplicationContext,
 ) {
     // 회로는 공급자마다 하나다(각 클라이언트가 자기 ClientResilience를 가진다)
     @Bean
@@ -82,13 +93,65 @@ class ReportClientsConfig(
     fun attendanceClient() = AttendanceClient(properties.attendance.takeIf { it.configured }?.let(::restClient))
 
     @Bean
-    fun formClient() = FormClient(properties.form.takeIf { it.configured }?.let(::restClient))
+    fun formClient() = FormClient(properties.form.takeIf { it.configured }?.let { feign(FormClient.NAME, it) })
 
     private fun restClient(provider: ReportClientsProperties.Provider) =
         reportRestClient(provider, properties.connectTimeout, properties.readTimeout, jsonMapper)
+
+    private inline fun <reified T : Any> feign(
+        name: String,
+        provider: ReportClientsProperties.Provider,
+    ): T = reportFeignClient(context, T::class.java, name, provider, properties.connectTimeout, properties.readTimeout)
 }
 
 private const val INTERNAL_TOKEN_HEADER = "X-Internal-Token"
+
+/**
+ * 공급자별 Feign 클라이언트. `@FeignClient` 스캔 대신 여기서 만들어 선택 공급자는 설정이 없으면 만들지 않는다(null).
+ * 토큰 인터셉터·타임아웃·재시도 끔·상태 코드 디코더는 이 공급자에만 적용된다. 회로와 재시도는 [ClientResilience]만 맡는다.
+ */
+fun <T : Any> reportFeignClient(
+    context: ApplicationContext,
+    type: Class<T>,
+    name: String,
+    provider: ReportClientsProperties.Provider,
+    connectTimeout: Duration,
+    readTimeout: Duration,
+): T =
+    FeignClientBuilder(context)
+        .forType(type, name.lowercase())
+        .url(provider.url)
+        .customize { builder ->
+            builder
+                // 기본 계약은 인코딩된 '/'(%2F)를 되돌린다. RestClient처럼 경로 변수·쿼리 값의 '/'를 인코딩된 채로 보낸다
+                .contract(
+                    SpringMvcContract(
+                        emptyList(),
+                        DefaultFormattingConversionService(),
+                        FeignClientProperties().apply {
+                            isDecodeSlash =
+                                false
+                        },
+                    ),
+                )
+                // JDK HttpClient라 타임아웃이 HttpTimeoutException으로 온다(ClientResilience 판정 기준)
+                .client(Http2Client())
+                // RestClient(JDK HttpClient 기본값)처럼 리다이렉트를 따라가지 않는다
+                .options(Request.Options(connectTimeout, readTimeout, false))
+                .retryer(Retryer.NEVER_RETRY)
+                // 기본 FeignException 메시지에는 URL·응답 본문이 들어간다
+                .errorDecoder { _, response -> ProviderStatusException(response.status()) }
+                .requestInterceptor {
+                    // 토큰에 '{'가 있어도 템플릿으로 해석하지 않는다
+                    it.headerLiteral(INTERNAL_TOKEN_HEADER, provider.internalToken)
+                    it.header("Accept", MediaType.APPLICATION_JSON_VALUE)
+                }
+        }.build()
+
+/** 공급자가 2xx가 아닌 상태로 응답했다. 메시지에는 상태만 담는다. */
+class ProviderStatusException(
+    val status: Int,
+) : RuntimeException("HTTP $status")
 
 /** 공급자별 클라이언트. 토큰은 그 공급자의 요청에만 실린다. */
 fun reportRestClient(
@@ -135,3 +198,25 @@ internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchOrNu
 
 internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchRequired(guard: ClientResilience.Guard): T =
     fetch(guard, object : ParameterizedTypeReference<T>() {})!!
+
+/**
+ * Feign 호출 결과를 읽는다. 규칙은 RestClient [fetch]와 같다: [notFoundAsNull]이면 404는 null, 그 밖의 실패는 공급자 이름과 상태만 담은 예외다.
+ * 본문이 비어도 형식 오류다.
+ */
+internal fun <T : Any> ClientResilience.Guard.fetch(
+    notFoundAsNull: Boolean = false,
+    call: () -> T?,
+): T? =
+    try {
+        run(call) ?: error("$provider 서비스 응답 형식 오류")
+    } catch (e: ProviderStatusException) {
+        if (notFoundAsNull && e.status == 404) null else error("$provider 서비스 응답 오류(HTTP ${e.status})")
+    } catch (e: RetryableException) {
+        error("$provider 서비스 연결 실패")
+    } catch (e: FeignException) {
+        error("$provider 서비스 응답 형식 오류")
+    }
+
+internal fun <T : Any> ClientResilience.Guard.fetchOrNull(call: () -> T?): T? = fetch(notFoundAsNull = true, call = call)
+
+internal fun <T : Any> ClientResilience.Guard.fetchRequired(call: () -> T?): T = fetch(call = call)!!
