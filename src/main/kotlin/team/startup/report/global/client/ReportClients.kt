@@ -81,7 +81,7 @@ class ReportClientsConfig(
 ) {
     // 회로는 공급자마다 하나다(각 클라이언트가 자기 ClientResilience를 가진다)
     @Bean
-    fun userClient() = UserClient(restClient(properties.user))
+    fun userClient() = UserClient(feign(UserClient.NAME, properties.user))
 
     @Bean
     fun applicationClient() = ApplicationClient(restClient(properties.application))
