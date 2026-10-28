@@ -8,10 +8,10 @@ import team.startup.report.domain.excel.renderer.EntryNames
 import team.startup.report.domain.excel.renderer.renderEntryRecords
 import team.startup.report.domain.excel.service.EntryRecordExcelService
 import team.startup.report.domain.excel.service.ExcelFile
-import team.startup.report.global.client.AttendanceClient
-import team.startup.report.global.client.EntryRecord
-import team.startup.report.global.client.UserClient
-import team.startup.report.global.client.WalkInCount
+import team.startup.report.global.client.attendance.AttendanceClient
+import team.startup.report.global.client.attendance.EntryRecord
+import team.startup.report.global.client.attendance.WalkInCount
+import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
 import java.time.LocalDateTime

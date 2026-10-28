@@ -5,12 +5,12 @@ import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.domain.excel.service.impl.requiredText
 import team.startup.report.domain.excel.service.regionLabel
-import team.startup.report.global.client.ApplicationFilter
-import team.startup.report.global.client.ApplicationRow
-import team.startup.report.global.client.ApplicationStatus
 import team.startup.report.global.client.SessionType
-import team.startup.report.global.client.StandardParticipantDetail
-import team.startup.report.global.client.TraineeDetailItem
+import team.startup.report.global.client.application.ApplicationFilter
+import team.startup.report.global.client.application.ApplicationRow
+import team.startup.report.global.client.application.ApplicationStatus
+import team.startup.report.global.client.user.StandardParticipantDetail
+import team.startup.report.global.client.user.TraineeDetailItem
 import team.startup.report.global.common.time.PROGRAM_SCHEDULE
 import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import java.time.Instant

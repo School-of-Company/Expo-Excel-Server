@@ -1,7 +1,9 @@
-package team.startup.report.global.client
+package team.startup.report.global.client.form
 
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
+import team.startup.report.global.client.ClientResilience
+import team.startup.report.global.client.fetchOrNull
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 

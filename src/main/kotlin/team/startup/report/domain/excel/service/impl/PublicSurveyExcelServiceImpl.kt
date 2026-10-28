@@ -7,9 +7,9 @@ import org.springframework.web.util.UriUtils
 import team.startup.report.domain.excel.renderer.renderPublicSurveyAnswers
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.PublicSurveyExcelService
-import team.startup.report.global.client.FormClient
-import team.startup.report.global.client.PublicSurveyAnswer
-import team.startup.report.global.client.PublicSurveyAnswerPage
+import team.startup.report.global.client.form.FormClient
+import team.startup.report.global.client.form.PublicSurveyAnswer
+import team.startup.report.global.client.form.PublicSurveyAnswerPage
 import team.startup.report.global.exception.ExpectedException
 import java.time.OffsetDateTime
 import java.time.ZoneId

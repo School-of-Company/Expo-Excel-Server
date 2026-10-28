@@ -18,9 +18,9 @@ import team.startup.report.domain.excel.presentation.controller.ExcelController
 import team.startup.report.domain.excel.presentation.controller.ExcelDownloadController
 import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
 import team.startup.report.domain.excel.presentation.controller.PublicSurveyExcelController
-import team.startup.report.global.client.ExpoClient
-import team.startup.report.global.client.TraineeDetail
-import team.startup.report.global.client.UserClient
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.user.TraineeDetail
+import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
 
 @Configuration

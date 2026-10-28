@@ -6,6 +6,9 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.form.FormClient
+import team.startup.report.global.client.user.UserClient
 import java.time.Duration
 
 private const val EXPO = "GET /internal/expo/e1"

@@ -2,8 +2,8 @@ package team.startup.report.domain.excel.renderer
 
 import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
-import team.startup.report.global.client.EntryRecord
-import team.startup.report.global.client.WalkInCount
+import team.startup.report.global.client.attendance.EntryRecord
+import team.startup.report.global.client.attendance.WalkInCount
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 

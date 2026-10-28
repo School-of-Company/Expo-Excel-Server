@@ -12,6 +12,11 @@ import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
+import team.startup.report.global.client.application.ApplicationClient
+import team.startup.report.global.client.attendance.AttendanceClient
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.form.FormClient
+import team.startup.report.global.client.user.UserClient
 import tools.jackson.databind.json.JsonMapper
 import java.net.http.HttpClient
 import java.time.Duration

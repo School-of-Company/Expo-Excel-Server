@@ -1,10 +1,13 @@
-package team.startup.report.global.client
+package team.startup.report.global.client.expo
 
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
 import team.startup.report.domain.excel.service.TrainingCategory
+import team.startup.report.global.client.ClientResilience
+import team.startup.report.global.client.fetchOrNull
+import team.startup.report.global.client.fetchRequired
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 
