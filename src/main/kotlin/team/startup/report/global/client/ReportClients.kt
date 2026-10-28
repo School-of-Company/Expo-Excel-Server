@@ -87,7 +87,7 @@ class ReportClientsConfig(
     fun applicationClient() = ApplicationClient(restClient(properties.application))
 
     @Bean
-    fun expoClient() = ExpoClient(restClient(properties.expo))
+    fun expoClient() = ExpoClient(feign(ExpoClient.NAME, properties.expo))
 
     @Bean
     fun attendanceClient() = AttendanceClient(properties.attendance.takeIf { it.configured }?.let { feign(AttendanceClient.NAME, it) })

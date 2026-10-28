@@ -2,10 +2,15 @@ package team.startup.report.global.client.expo
 
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientResponseException
+import org.springframework.http.MediaType
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.global.client.ClientResilience
+import team.startup.report.global.client.ProviderStatusException
 import team.startup.report.global.client.fetchOrNull
 import team.startup.report.global.client.fetchRequired
 import team.startup.report.global.exception.ExpectedException
@@ -13,7 +18,7 @@ import tools.jackson.databind.JsonNode
 
 /** Expo-Expo-Server 내부 조회(PR #50). */
 class ExpoClient(
-    private val http: RestClient,
+    private val api: ExpoApi,
     private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     fun requireAdminAccess(
@@ -23,14 +28,7 @@ class ExpoClient(
     ) {
         try {
             val body =
-                resilience.read.run {
-                    http
-                        .get()
-                        .uri("/internal/expo/{expoId}/admin-access", expoId)
-                        .header(HttpHeaders.AUTHORIZATION, authorization)
-                        .retrieve()
-                        .body(JsonNode::class.java)
-                }
+                resilience.read.run { api.adminAccess(expoId, authorization) }
                     ?: error("권한 응답 없음")
             check(body.path("adminId").isIntegralNumber && body.path("adminId").canConvertToLong())
             check(body.path("adminId").asLong() == adminId && adminId > 0)
@@ -38,9 +36,9 @@ class ExpoClient(
             check(body.path("permission").asString() == "APPLICATION_READ")
             check(body.path("policyVersion").asString() == "GLOBAL_ADMIN_APPLICATION_READ_V1")
             check(body.path("scope").asString() == "GLOBAL_ADMIN")
-        } catch (e: RestClientResponseException) {
+        } catch (e: ProviderStatusException) {
             val status =
-                when (e.statusCode.value()) {
+                when (e.status) {
                     401 -> HttpStatus.UNAUTHORIZED
                     403 -> HttpStatus.FORBIDDEN
                     404 -> HttpStatus.NOT_FOUND
@@ -53,25 +51,21 @@ class ExpoClient(
     }
 
     /** 없으면 null */
-    fun expo(expoId: String): ExpoSummary? = http.get().uri("/internal/expo/{expoId}", expoId).fetchOrNull(resilience.read)
+    fun expo(expoId: String): ExpoSummary? = resilience.read.fetchOrNull { api.expo(expoId) }
 
     /** 행사가 없거나 프로그램이 그 행사 소속이 아니면 null(공급자는 둘 다 404) */
     fun standardProgram(
         expoId: String,
         programId: Long,
-    ): StandardProgramSummary? =
-        http.get().uri("/internal/expo/{expoId}/standard-programs/{programId}", expoId, programId).fetchOrNull(resilience.read)
+    ): StandardProgramSummary? = resilience.read.fetchOrNull { api.standardProgram(expoId, programId) }
 
     /** 없거나 다른 행사 소속이면 null(공급자 404) */
     fun trainingProgram(
         expoId: String,
         programId: Long,
     ): TrainingProgramSummary? =
-        http
-            .post()
-            .uri("/internal/expo/{expoId}/training-programs/batch", expoId)
-            .body(mapOf("programIds" to listOf(programId)))
-            .fetchOrNull<List<TrainingProgramSummary>>(resilience.write)
+        resilience.write
+            .fetchOrNull { api.trainingPrograms(expoId, mapOf("programIds" to listOf(programId))) }
             ?.single()
             ?.also { check(it.id == programId) { "$NAME 서비스 대상 오류" } }
 
@@ -81,17 +75,39 @@ class ExpoClient(
         programIds: List<Long>,
     ): List<TrainingProgramSummary> {
         require(programIds.size <= MAX_PROGRAM_IDS)
-        return http
-            .post()
-            .uri("/internal/expo/{expoId}/training-programs/batch", expoId)
-            .body(mapOf("programIds" to programIds))
-            .fetchRequired(resilience.write)
+        return resilience.write.fetchRequired { api.trainingPrograms(expoId, mapOf("programIds" to programIds)) }
     }
 
     companion object {
         const val NAME = "Expo"
         const val MAX_PROGRAM_IDS = 100
     }
+}
+
+interface ExpoApi {
+    // 요청자의 Authorization을 그대로 넘긴다
+    @GetMapping("/internal/expo/{expoId}/admin-access")
+    fun adminAccess(
+        @PathVariable("expoId") expoId: String,
+        @RequestHeader(HttpHeaders.AUTHORIZATION) authorization: String,
+    ): JsonNode?
+
+    @GetMapping("/internal/expo/{expoId}")
+    fun expo(
+        @PathVariable("expoId") expoId: String,
+    ): ExpoSummary?
+
+    @GetMapping("/internal/expo/{expoId}/standard-programs/{programId}")
+    fun standardProgram(
+        @PathVariable("expoId") expoId: String,
+        @PathVariable("programId") programId: Long,
+    ): StandardProgramSummary?
+
+    @PostMapping("/internal/expo/{expoId}/training-programs/batch", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun trainingPrograms(
+        @PathVariable("expoId") expoId: String,
+        @RequestBody body: Map<String, List<Long>>,
+    ): List<TrainingProgramSummary>?
 }
 
 data class ExpoSummary(

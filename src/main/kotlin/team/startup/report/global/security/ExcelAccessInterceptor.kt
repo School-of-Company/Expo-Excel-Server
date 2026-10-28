@@ -2,6 +2,7 @@ package team.startup.report.global.security
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.context.SecurityContextHolder
@@ -23,13 +24,15 @@ import team.startup.report.global.client.user.TraineeDetail
 import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
 
+// 클라이언트는 생성자 대신 addInterceptors에서 꺼낸다. Feign 클라이언트를 만들 때 자식 컨텍스트의 refresh 이벤트가
+// WebMvc 설정을 먼저 초기화하므로, 생성자로 받으면 WebMvcConfigurer → 클라이언트 → WebMvc 설정 순환이 된다
 @Configuration
 class ExcelAccessConfiguration(
-    private val expo: ExpoClient,
-    private val user: UserClient,
+    private val expo: ObjectProvider<ExpoClient>,
+    private val user: ObjectProvider<UserClient>,
 ) : WebMvcConfigurer {
     override fun addInterceptors(registry: InterceptorRegistry) {
-        registry.addInterceptor(ExcelAccessInterceptor(expo, user)).addPathPatterns("/excel/**")
+        registry.addInterceptor(ExcelAccessInterceptor(expo.getObject(), user.getObject())).addPathPatterns("/excel/**")
     }
 }
 
