@@ -165,7 +165,7 @@ fun renderApplicationLedger(
     listOf(
         "항목" to "값",
         "생성 시각(KST)" to KST.format(meta.generatedAt),
-        "시간대" to "Asia/Seoul(KST). 신청·이력 시각은 KST로 변환, 운영 일시는 신청 당시 회차 정의 값(오프셋이 붙은 값은 KST로 변환)",
+        "시간대" to "Asia/Seoul(KST). 신청·이력 시각은 KST로 변환, 운영 일시는 신청 당시 회차 정의 값",
         "행사 ID" to meta.expoId,
         "범위" to meta.scope,
         "선택 신청 수" to meta.selected?.toString(),
