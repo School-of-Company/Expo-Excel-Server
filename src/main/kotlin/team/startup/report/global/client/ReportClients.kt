@@ -13,22 +13,13 @@ import org.springframework.cloud.openfeign.support.SpringMvcContract
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.ParameterizedTypeReference
 import org.springframework.format.support.DefaultFormattingConversionService
 import org.springframework.http.MediaType
-import org.springframework.http.client.JdkClientHttpRequestFactory
-import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter
-import org.springframework.web.client.ResourceAccessException
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
-import org.springframework.web.client.RestClientResponseException
 import team.startup.report.global.client.application.ApplicationClient
 import team.startup.report.global.client.attendance.AttendanceClient
 import team.startup.report.global.client.expo.ExpoClient
 import team.startup.report.global.client.form.FormClient
 import team.startup.report.global.client.user.UserClient
-import tools.jackson.databind.json.JsonMapper
-import java.net.http.HttpClient
 import java.time.Duration
 
 /**
@@ -76,7 +67,6 @@ data class ReportClientsProperties(
 @EnableConfigurationProperties(ReportClientsProperties::class)
 class ReportClientsConfig(
     private val properties: ReportClientsProperties,
-    private val jsonMapper: JsonMapper,
     private val context: ApplicationContext,
 ) {
     // 회로는 공급자마다 하나다(각 클라이언트가 자기 ClientResilience를 가진다)
@@ -95,9 +85,6 @@ class ReportClientsConfig(
     @Bean
     fun formClient() = FormClient(properties.form.takeIf { it.configured }?.let { feign(FormClient.NAME, it) })
 
-    private fun restClient(provider: ReportClientsProperties.Provider) =
-        reportRestClient(provider, properties.connectTimeout, properties.readTimeout, jsonMapper)
-
     private inline fun <reified T : Any> feign(
         name: String,
         provider: ReportClientsProperties.Provider,
@@ -105,6 +92,10 @@ class ReportClientsConfig(
 }
 
 private const val INTERNAL_TOKEN_HEADER = "X-Internal-Token"
+
+// 기본 계약은 인코딩된 '/'(%2F)를 '/'로 되돌린다. 경로 변수·쿼리 값의 '/'를 인코딩된 채로 보낸다
+private fun contract() =
+    SpringMvcContract(emptyList(), DefaultFormattingConversionService(), FeignClientProperties().apply { isDecodeSlash = false })
 
 /**
  * 공급자별 Feign 클라이언트. `@FeignClient` 스캔 대신 여기서 만들어 선택 공급자는 설정이 없으면 만들지 않는다(null).
@@ -123,20 +114,10 @@ fun <T : Any> reportFeignClient(
         .url(provider.url)
         .customize { builder ->
             builder
-                // 기본 계약은 인코딩된 '/'(%2F)를 되돌린다. RestClient처럼 경로 변수·쿼리 값의 '/'를 인코딩된 채로 보낸다
-                .contract(
-                    SpringMvcContract(
-                        emptyList(),
-                        DefaultFormattingConversionService(),
-                        FeignClientProperties().apply {
-                            isDecodeSlash =
-                                false
-                        },
-                    ),
-                )
+                .contract(contract())
                 // JDK HttpClient라 타임아웃이 HttpTimeoutException으로 온다(ClientResilience 판정 기준)
                 .client(Http2Client())
-                // RestClient(JDK HttpClient 기본값)처럼 리다이렉트를 따라가지 않는다
+                // 리다이렉트는 따라가지 않는다(기존 JDK HttpClient 기본값과 같다)
                 .options(Request.Options(connectTimeout, readTimeout, false))
                 .retryer(Retryer.NEVER_RETRY)
                 // 기본 FeignException 메시지에는 URL·응답 본문이 들어간다
@@ -153,55 +134,10 @@ class ProviderStatusException(
     val status: Int,
 ) : RuntimeException("HTTP $status")
 
-/** 공급자별 클라이언트. 토큰은 그 공급자의 요청에만 실린다. */
-fun reportRestClient(
-    provider: ReportClientsProperties.Provider,
-    connectTimeout: Duration,
-    readTimeout: Duration,
-    jsonMapper: JsonMapper,
-): RestClient =
-    RestClient
-        .builder()
-        .baseUrl(provider.url)
-        .requestFactory(
-            JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(connectTimeout).build())
-                .apply { setReadTimeout(readTimeout) },
-        ).configureMessageConverters { it.withJsonConverter(JacksonJsonHttpMessageConverter(jsonMapper)) }
-        .defaultHeader(INTERNAL_TOKEN_HEADER, provider.internalToken)
-        .defaultHeader("Accept", MediaType.APPLICATION_JSON_VALUE)
-        .build()
-
 /**
- * 공급자 호출 결과를 읽는다. [notFoundAsNull]이면 404는 "대상 없음"(null)이고, 그 밖의 실패는 모두 예외다.
- * 실제 HTTP 호출만 [guard]로 감싼다(회로·재시도). 404 변환과 본문 형식 오류는 회로 밖에서 일어나 장애로 세지 않는다.
+ * 공급자 호출 결과를 읽는다. [notFoundAsNull]이면 404는 "대상 없음"(null)이고, 그 밖의 실패는 모두 예외다. 본문이 비어도 형식 오류다.
+ * 실제 HTTP 호출만 회로·재시도로 감싼다. 404와 본문 형식 오류는 회로가 장애로 세지 않는다.
  * 예외 메시지는 엑셀 실패 응답에 나갈 수 있으므로 공급자 이름과 상태만 담는다. 원인(URL·응답 본문)은 붙이지 않는다.
- */
-internal fun <T : Any> RestClient.RequestHeadersSpec<*>.fetch(
-    guard: ClientResilience.Guard,
-    type: ParameterizedTypeReference<T>,
-    notFoundAsNull: Boolean = false,
-): T? {
-    val provider = guard.provider
-    return try {
-        guard.run { retrieve().body(type) } ?: error("$provider 서비스 응답 형식 오류")
-    } catch (e: RestClientResponseException) {
-        if (notFoundAsNull && e.statusCode.value() == 404) null else error("$provider 서비스 응답 오류(HTTP ${e.statusCode.value()})")
-    } catch (e: ResourceAccessException) {
-        error("$provider 서비스 연결 실패")
-    } catch (e: RestClientException) {
-        error("$provider 서비스 응답 형식 오류")
-    }
-}
-
-internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchOrNull(guard: ClientResilience.Guard): T? =
-    fetch(guard, object : ParameterizedTypeReference<T>() {}, notFoundAsNull = true)
-
-internal inline fun <reified T : Any> RestClient.RequestHeadersSpec<*>.fetchRequired(guard: ClientResilience.Guard): T =
-    fetch(guard, object : ParameterizedTypeReference<T>() {})!!
-
-/**
- * Feign 호출 결과를 읽는다. 규칙은 RestClient [fetch]와 같다: [notFoundAsNull]이면 404는 null, 그 밖의 실패는 공급자 이름과 상태만 담은 예외다.
- * 본문이 비어도 형식 오류다.
  */
 internal fun <T : Any> ClientResilience.Guard.fetch(
     notFoundAsNull: Boolean = false,

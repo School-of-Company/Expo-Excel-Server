@@ -6,7 +6,6 @@ import org.springframework.boot.http.converter.autoconfigure.HttpMessageConverte
 import org.springframework.cloud.openfeign.FeignAutoConfiguration
 import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Configuration
-import org.springframework.web.client.RestClient
 import tools.jackson.databind.json.JsonMapper
 import java.net.InetSocketAddress
 import java.time.Duration
@@ -62,11 +61,8 @@ class StubProvider(
         routes[route] = { Reply(status, body as? String ?: JSON.writeValueAsString(body)) }
     }
 
-    /** 클라이언트 생성자가 받는 타입(Feign 인터페이스 또는 RestClient)으로 이 서버를 가리키는 클라이언트를 만든다. */
-    inline fun <reified T : Any> client(readTimeout: Duration = Duration.ofSeconds(5)): T =
-        if (T::class == RestClient::class) restClient(readTimeout) as T else feign(T::class.java, readTimeout)
-
-    fun restClient(readTimeout: Duration = Duration.ofSeconds(5)) = reportRestClient(provider(), Duration.ofSeconds(1), readTimeout, JSON)
+    /** 클라이언트 생성자가 받는 Feign 인터페이스 타입으로 이 서버를 가리키는 클라이언트를 만든다. 예: `UserClient(user.client())` */
+    inline fun <reified T : Any> client(readTimeout: Duration = Duration.ofSeconds(5)): T = feign(T::class.java, readTimeout)
 
     /** 운영과 같은 [reportFeignClient] 경로(Boot 메시지 컨버터·FeignClientBuilder)로 만든다. */
     fun <T : Any> feign(
