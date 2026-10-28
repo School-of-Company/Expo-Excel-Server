@@ -1,10 +1,11 @@
 package team.startup.report.global.client
 
+import feign.Client
 import feign.FeignException
 import feign.Request
+import feign.Response
 import feign.RetryableException
 import feign.Retryer
-import feign.http2client.Http2Client
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.openfeign.FeignClientBuilder
@@ -14,12 +15,16 @@ import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.format.support.DefaultFormattingConversionService
+import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import team.startup.report.global.client.application.ApplicationClient
 import team.startup.report.global.client.attendance.AttendanceClient
 import team.startup.report.global.client.expo.ExpoClient
 import team.startup.report.global.client.form.FormClient
 import team.startup.report.global.client.user.UserClient
+import java.net.URI
+import java.net.http.HttpClient
 import java.time.Duration
 
 /**
@@ -115,10 +120,7 @@ fun <T : Any> reportFeignClient(
         .customize { builder ->
             builder
                 .contract(contract())
-                // JDK HttpClient라 타임아웃이 HttpTimeoutException으로 온다(ClientResilience 판정 기준)
-                .client(Http2Client())
-                // 리다이렉트는 따라가지 않는다(기존 JDK HttpClient 기본값과 같다)
-                .options(Request.Options(connectTimeout, readTimeout, false))
+                .client(JdkClient(connectTimeout, readTimeout))
                 .retryer(Retryer.NEVER_RETRY)
                 // 기본 FeignException 메시지에는 URL·응답 본문이 들어간다
                 .errorDecoder { _, response -> ProviderStatusException(response.status()) }
@@ -128,6 +130,41 @@ fun <T : Any> reportFeignClient(
                     it.header("Accept", MediaType.APPLICATION_JSON_VALUE)
                 }
         }.build()
+
+/**
+ * 기존 RestClient와 같은 Spring JDK 요청 팩토리로 보낸다. 타임아웃이 HttpTimeoutException으로 와서 [ClientResilience] 판정 기준과 맞고,
+ * 리다이렉트는 따라가지 않는다. feign-java11 클라이언트는 읽기 타임아웃을 응답 헤더까지만 적용해 본문이 멈추면 끝없이 기다린다.
+ */
+private class JdkClient(
+    connectTimeout: Duration,
+    readTimeout: Duration,
+) : Client {
+    private val factory =
+        JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(connectTimeout).build()).apply { setReadTimeout(readTimeout) }
+
+    override fun execute(
+        request: Request,
+        options: Request.Options,
+    ): Response {
+        val outgoing = factory.createRequest(URI.create(request.url()), HttpMethod.valueOf(request.httpMethod().name))
+        request.headers().forEach { (name, values) -> outgoing.headers.addAll(name, values.toList()) }
+        request.body()?.let { outgoing.body.write(it) }
+        val response = outgoing.execute()
+        return Response
+            .builder()
+            .request(request)
+            .status(response.statusCode.value())
+            .reason(response.statusText)
+            .headers(buildMap { response.headers.forEach { name, values -> put(name, values) } })
+            // 본문 스트림을 닫으면 타임아웃 감시도 끝난다(Feign이 디코딩 후 닫는다)
+            .body(
+                response.body,
+                response.headers.contentLength
+                    .takeIf { it in 0..Int.MAX_VALUE }
+                    ?.toInt(),
+            ).build()
+    }
+}
 
 /** 공급자가 2xx가 아닌 상태로 응답했다. 메시지에는 상태만 담는다. */
 class ProviderStatusException(

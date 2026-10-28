@@ -27,6 +27,8 @@ class StubProvider(
         val status: Int,
         val body: String,
         val delay: Duration = Duration.ZERO,
+        // 헤더와 본문 첫 바이트를 보낸 뒤 나머지 본문을 이만큼 늦게 보낸다
+        val bodyStall: Duration = Duration.ZERO,
     )
 
     val requests = mutableListOf<Request>()
@@ -48,7 +50,13 @@ class StubProvider(
                 val bytes = reply.body.toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(reply.status, if (bytes.isEmpty()) -1 else bytes.size.toLong())
-                exchange.responseBody.use { it.write(bytes) }
+                exchange.responseBody.use {
+                    if (reply.bodyStall.isZero || bytes.isEmpty()) return@use it.write(bytes)
+                    it.write(bytes, 0, 1)
+                    it.flush()
+                    Thread.sleep(reply.bodyStall.toMillis())
+                    it.write(bytes, 1, bytes.size - 1)
+                }
             }
             start()
         }
