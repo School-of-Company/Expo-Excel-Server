@@ -67,6 +67,11 @@ import team.startup.report.global.exception.ErrorResponse
             description = "행사 권한 공급자 장애·계약 오류",
             content = [Content(schema = Schema(implementation = ErrorResponse::class))],
         ),
+        ApiResponse(
+            responseCode = "504",
+            description = "요청 데드라인(58초) 초과. Gateway idle 60초에 앞서 남은 원천 조회를 멈춤",
+            content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+        ),
     ],
 )
 class ExcelController(

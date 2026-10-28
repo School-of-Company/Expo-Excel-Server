@@ -6,13 +6,19 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.http.HttpStatus
+import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.web.context.request.RequestContextHolder
+import org.springframework.web.context.request.ServletRequestAttributes
 import team.startup.report.domain.excel.service.ExcelFile
+import team.startup.report.global.client.RequestDeadline
 import team.startup.report.global.client.StubProvider
 import team.startup.report.global.client.form.FormClient
 import team.startup.report.global.exception.ExpectedException
 import team.startup.report.support.values
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.time.Duration
+import java.time.Instant
 
 private const val TOKEN = "form-token-for-test"
 private const val EXPO = "11111111-1111-1111-1111-111111111111"
@@ -129,6 +135,22 @@ class PublicSurveyExcelServiceTests :
             form.requests.map { it.uri } shouldBe
                 listOf("/internal/surveys/$EXPO/public-answers?limit=1000", "/internal/surveys/$EXPO/public-answers?cursor=c1&limit=1000")
             form.requests.all { it.token == TOKEN } shouldBe true
+        }
+
+        "요청 데드라인이 페이지 조회 중에 지나면 다음 페이지를 부르지 않고 504다" {
+            val first = page(listOf(answer("a1", mapOf())), total = 2, next = "c1")
+            form.routes[FIRST] = { StubProvider.Reply(200, StubProvider.JSON.writeValueAsString(first), delay = Duration.ofMillis(300)) }
+            form.on(SECOND, body = page(listOf(answer("a2", mapOf())), total = 2))
+            val request = MockHttpServletRequest()
+            RequestDeadline.start(request, Instant.now().plusMillis(100))
+            RequestContextHolder.setRequestAttributes(ServletRequestAttributes(request))
+            try {
+                val error = shouldThrow<ExpectedException> { service.execute(EXPO) }
+                error.status shouldBe HttpStatus.GATEWAY_TIMEOUT
+            } finally {
+                RequestContextHolder.resetRequestAttributes()
+            }
+            form.requests.map { it.uri } shouldBe listOf("/internal/surveys/$EXPO/public-answers?limit=1000")
         }
 
         "불투명 커서는 예약 문자까지 인코딩해 그대로 넘긴다" {

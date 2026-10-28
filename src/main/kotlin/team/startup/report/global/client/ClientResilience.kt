@@ -37,6 +37,8 @@ class ClientResilience(
         val provider: String get() = this@ClientResilience.provider
 
         fun <T> run(block: () -> T): T {
+            // 차단기 바깥에서 확인해 데드라인 초과(504)는 공급자 장애로 세지 않는다
+            RequestDeadline.check()
             // 차단기가 재시도 바깥이다: 재시도를 거친 최종 결과만 1건으로 집계하고, 회로가 열려 있으면 시도 자체를 하지 않는다
             val attempt: () -> T =
                 if (retry == null) {
