@@ -88,7 +88,7 @@ class ProgramAttendanceExcelController(
             ),
             ApiResponse(
                 responseCode = "503",
-                description = "출석 서비스 연결 미설정",
+                description = "출석 서비스 연결 미설정, 엑셀 동시 다운로드 한도 초과",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
         ],
