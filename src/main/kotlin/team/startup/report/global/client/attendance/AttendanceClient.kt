@@ -1,17 +1,22 @@
-package team.startup.report.global.client
+package team.startup.report.global.client.attendance
 
 import org.springframework.http.HttpStatus
-import org.springframework.web.client.RestClient
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestParam
+import team.startup.report.global.client.ClientResilience
+import team.startup.report.global.client.SessionType
+import team.startup.report.global.client.fetchOrNull
+import team.startup.report.global.client.fetchRequired
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
-import java.util.Optional
 
 /**
  * Expo-Attendance-Server 내부 조회(Attendance #150). 입장·재입장·퇴장 이력을 발생 시각 오름차순 페이지로 받는다.
- * 주소·토큰은 선택 설정이라 [http]가 null이면(미설정) 호출 시 503이다. 이름·연락처는 공급자가 주지 않는다.
+ * 주소·토큰은 선택 설정이라 [api]가 null이면(미설정) 호출 시 503이다. 이름·연락처는 공급자가 주지 않는다.
  */
 class AttendanceClient(
-    private val http: RestClient?,
+    private val api: AttendanceApi?,
     private val resilience: ClientResilience = ClientResilience(NAME),
 ) {
     /** 행사가 없으면 null(공급자 404). 기간 검증은 호출자가 먼저 하므로 공급자 400은 계약 오류로 보고 실패다. */
@@ -22,18 +27,8 @@ class AttendanceClient(
         page: Int,
         size: Int,
     ): EntryRecordPage? {
-        val client = http ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "입장 기록 서비스 연결이 설정되지 않았습니다.")
-        return client
-            .get()
-            .uri {
-                it
-                    .path("/internal/expos/{expoId}/entry-records")
-                    .queryParamIfPresent("from", Optional.ofNullable(from))
-                    .queryParamIfPresent("to", Optional.ofNullable(to))
-                    .queryParam("page", page)
-                    .queryParam("size", size)
-                    .build(expoId)
-            }.fetchOrNull(resilience.read)
+        val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "입장 기록 서비스 연결이 설정되지 않았습니다.")
+        return resilience.read.fetchOrNull { client.entryRecordPage(expoId, from, to, page, size) }
     }
 
     /**
@@ -44,11 +39,8 @@ class AttendanceClient(
         programType: SessionType,
         programId: Long,
     ): List<ProgramAttendanceRecord> {
-        val client = http ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "출석 서비스 연결이 설정되지 않았습니다.")
-        return client
-            .get()
-            .uri("/internal/program-attendances/{type}/{programId}", programType.name.lowercase(), programId)
-            .fetchRequired(resilience.read)
+        val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "출석 서비스 연결이 설정되지 않았습니다.")
+        return resilience.read.fetchRequired { client.programAttendances(programType.name.lowercase(), programId) }
     }
 
     companion object {
@@ -57,6 +49,24 @@ class AttendanceClient(
         // Attendance #150 계약의 size 최대는 5000이다. 한 번에 받는 양은 이보다 작게 둔다.
         const val PAGE_SIZE = 2000
     }
+}
+
+interface AttendanceApi {
+    // from·to가 null이면 쿼리에서 빠진다
+    @GetMapping("/internal/expos/{expoId}/entry-records")
+    fun entryRecordPage(
+        @PathVariable("expoId") expoId: String,
+        @RequestParam("from", required = false) from: LocalDate?,
+        @RequestParam("to", required = false) to: LocalDate?,
+        @RequestParam("page") page: Int,
+        @RequestParam("size") size: Int,
+    ): EntryRecordPage?
+
+    @GetMapping("/internal/program-attendances/{type}/{programId}")
+    fun programAttendances(
+        @PathVariable("type") type: String,
+        @PathVariable("programId") programId: Long,
+    ): List<ProgramAttendanceRecord>?
 }
 
 /** 이름·연락처 없이 대상 ID만 싣는다. 종이 QR은 [subjectId]가 null이다. 구분 값은 모르는 값이 와도 읽도록 문자열로 받는다. */

@@ -7,8 +7,8 @@ import io.kotest.matchers.string.shouldContain
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.springframework.http.HttpStatus
 import team.startup.report.domain.excel.service.ExcelFile
-import team.startup.report.global.client.FormClient
 import team.startup.report.global.client.StubProvider
+import team.startup.report.global.client.form.FormClient
 import team.startup.report.global.exception.ExpectedException
 import team.startup.report.support.values
 import java.io.ByteArrayInputStream

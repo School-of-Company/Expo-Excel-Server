@@ -2,8 +2,8 @@ package team.startup.report.domain.excel.presentation.dto.request
 
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.Schema
-import team.startup.report.global.client.ApplicationFilter
-import team.startup.report.global.client.RegistrationFilter
+import team.startup.report.global.client.application.ApplicationFilter
+import team.startup.report.global.client.application.RegistrationFilter
 import tools.jackson.databind.JsonNode
 import java.util.UUID
 

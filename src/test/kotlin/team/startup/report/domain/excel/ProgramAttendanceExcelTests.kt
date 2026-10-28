@@ -22,12 +22,12 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
 import team.startup.report.domain.excel.service.impl.ExcelDownloadServiceImpl
 import team.startup.report.domain.excel.service.impl.ProgramAttendanceExcelServiceImpl
-import team.startup.report.global.client.ApplicationClient
-import team.startup.report.global.client.AttendanceClient
-import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.client.StubProvider
-import team.startup.report.global.client.UserClient
+import team.startup.report.global.client.application.ApplicationClient
+import team.startup.report.global.client.attendance.AttendanceClient
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
 import team.startup.report.support.TestJwt
 import team.startup.report.support.values

@@ -10,6 +10,9 @@ import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.impl.HttpReportSource
+import team.startup.report.global.client.application.ApplicationClient
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.user.UserClient
 import java.time.Duration
 
 private const val USER_TOKEN = "user-token-for-test"

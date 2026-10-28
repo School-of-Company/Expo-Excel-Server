@@ -3,9 +3,13 @@ package team.startup.report.global.client
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.form.FormClient
+import team.startup.report.global.client.user.UserClient
 import java.time.Duration
 
 private const val EXPO = "GET /internal/expo/e1"
@@ -134,6 +138,16 @@ class ClientResilienceTests :
             shouldThrow<IllegalStateException> { userClient(readTimeout = Duration.ofMillis(100)).trainee(1) }
 
             user.requests.size shouldBe 1
+        }
+
+        "응답 본문이 멈춰도 읽기 타임아웃 안에 실패한다" {
+            expo.routes[EXPO] =
+                { StubProvider.Reply(200, StubProvider.JSON.writeValueAsString(EXPO_BODY), bodyStall = Duration.ofSeconds(3)) }
+            val client = ExpoClient(expo.client(readTimeout = Duration.ofMillis(300)), expoResilience)
+
+            val started = System.nanoTime()
+            shouldThrow<IllegalStateException> { client.expo("e1") }
+            Duration.ofNanos(System.nanoTime() - started) shouldBeLessThan Duration.ofSeconds(2)
         }
 
         "연결 실패는 재시도하고 장애로 센다" {

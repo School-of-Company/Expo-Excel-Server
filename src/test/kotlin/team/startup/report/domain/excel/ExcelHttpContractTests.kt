@@ -33,11 +33,11 @@ import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExc
 import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
-import team.startup.report.global.client.ExpoClient
-import team.startup.report.global.client.InformationResDto
 import team.startup.report.global.client.StubProvider
-import team.startup.report.global.client.TraineeDetail
-import team.startup.report.global.client.UserClient
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.user.InformationResDto
+import team.startup.report.global.client.user.TraineeDetail
+import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.security.ExcelSecurityConfig
 import team.startup.report.support.TestJwt
 import java.io.ByteArrayInputStream

@@ -10,9 +10,9 @@ import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpStatus
 import team.startup.report.domain.excel.renderer.participationLabel
 import team.startup.report.domain.excel.service.ExcelFile
-import team.startup.report.global.client.AttendanceClient
 import team.startup.report.global.client.StubProvider
-import team.startup.report.global.client.UserClient
+import team.startup.report.global.client.attendance.AttendanceClient
+import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
 import team.startup.report.support.values
 import tools.jackson.databind.JsonNode

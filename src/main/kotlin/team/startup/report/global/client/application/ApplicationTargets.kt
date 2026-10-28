@@ -1,15 +1,14 @@
-package team.startup.report.global.client
+package team.startup.report.global.client.application
 
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonFormat
 import com.fasterxml.jackson.annotation.JsonInclude
 import io.swagger.v3.oas.annotations.media.Schema
+import team.startup.report.global.client.SessionType
 import tools.jackson.databind.JsonNode
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
-
-enum class SessionType { STANDARD, TRAINING }
 
 enum class ApplicationStatus { CONFIRMED, WAITING, CANCELLED }
 

@@ -1,4 +1,4 @@
-package team.startup.report.global.client
+package team.startup.report.global.client.application
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonSetter
