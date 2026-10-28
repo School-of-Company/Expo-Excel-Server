@@ -1,4 +1,4 @@
-package team.startup.report.domain.excel.presentation
+package team.startup.report.domain.excel.presentation.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -16,29 +16,29 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import team.startup.report.domain.excel.service.impl.EntryRecordExcelService
+import team.startup.report.domain.excel.service.impl.ProgramAttendanceExcelService
+import team.startup.report.global.client.SessionType
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
 import java.io.ByteArrayOutputStream
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
+import java.util.UUID
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
-class EntryRecordExcelController(
-    private val service: EntryRecordExcelService,
+class ProgramAttendanceExcelController(
+    private val service: ProgramAttendanceExcelService,
 ) {
     @Operation(
-        summary = "입장 기록 엑셀 다운로드",
+        summary = "회차 실제 출석 결과 엑셀 다운로드",
         description =
-            "참여 서비스의 입장·재입장·퇴장 기록을 발생 시각 순으로 출력하고, 간편입장 집계는 별도 시트에 담습니다. " +
-                "from·to(yyyy-MM-dd, 둘 다 포함)는 함께 주거나 모두 생략(박람회 전체 기간)합니다. 최대 300,000건입니다.",
+            "한 회차의 확정 신청자와 출석 서비스의 실제 출석일·입실 시각을 결합합니다(일반은 참가자 ID, 연수는 연수자 ID). " +
+                "확정 신청 없이 출석한 사람은 별도 시트에 남깁니다. 개인 수기 출석부와 다르며 퇴실·이수 결과는 없습니다.",
     )
     @ApiResponses(
         value = [
             ApiResponse(
                 responseCode = "200",
-                description = "XLSX 파일(no-store). 기록이 없어도 머리글만 있는 파일입니다.",
+                description = "XLSX 파일(no-store). 대상이 없어도 머리글만 있는 파일입니다.",
                 content = [
                     Content(
                         mediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -48,7 +48,7 @@ class EntryRecordExcelController(
             ),
             ApiResponse(
                 responseCode = "400",
-                description = "날짜 형식 오류·from만 또는 to만 지정·from이 to보다 늦음",
+                description = "행사 ID가 UUID가 아님·회차 유형/ID 누락 또는 잘못됨",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
@@ -58,40 +58,51 @@ class EntryRecordExcelController(
             ),
             ApiResponse(
                 responseCode = "403",
-                description = "관리자 역할 없음",
+                description = "관리자 역할 또는 행사 권한 없음",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "404",
-                description = "행사 없음",
+                description = "행사 없음·회차 없음 또는 다른 행사 회차",
+                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+            ),
+            ApiResponse(
+                responseCode = "410",
+                description = "신청 대상 스냅샷 만료",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "413",
-                description = "기록이 300,000건 초과",
+                description = "회차 신청 10,000건 초과",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "502",
-                description = "참여·유저 서비스 장애 또는 응답 오류(부분 결과로 파일을 만들지 않음)",
+                description = "신청·유저·행사·출석 서비스 장애 또는 응답 계약 위반(부분 결과·전원 미출석으로 파일을 만들지 않음)",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "503",
-                description = "참여 서비스 연결 미설정",
+                description = "출석 서비스 연결 미설정",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
         ],
     )
-    @GetMapping("/excel/entry-records/{expo_id}")
-    fun entryRecordsToExcel(
-        @Parameter(description = "박람회 ID", example = "11111111-1111-1111-1111-111111111111") @PathVariable("expo_id") expoId: String,
-        @Parameter(description = "입장 날짜 시작(포함, yyyy-MM-dd). to와 함께 지정", example = "2026-10-19")
-        @RequestParam("from", required = false) from: String?,
-        @Parameter(description = "입장 날짜 끝(포함, yyyy-MM-dd). from과 함께 지정", example = "2026-10-20")
-        @RequestParam("to", required = false) to: String?,
+    @GetMapping("/excel/expos/{expoId}/program-attendances")
+    fun download(
+        @Parameter(description = "박람회 UUID", example = "11111111-1111-1111-1111-111111111111") @PathVariable expoId: String,
+        @Parameter(description = "회차 유형", example = "STANDARD") @RequestParam("programType") programType: SessionType,
+        @Parameter(description = "회차 ID", example = "7") @RequestParam("programId") programId: Long,
     ): ResponseEntity<ByteArray> {
-        val file = service.execute(expoId, from?.toDate("from"), to?.toDate("to"))
+        val eventId =
+            try {
+                UUID.fromString(expoId).also {
+                    if (!it.toString().equals(expoId, ignoreCase = true)) throw IllegalArgumentException()
+                }
+            } catch (_: IllegalArgumentException) {
+                throw ExpectedException(HttpStatus.BAD_REQUEST, "행사 ID는 UUID여야 합니다.")
+            }
+        val file = service.execute(eventId, programType, programId)
         val bytes =
             file.workbook.use { workbook ->
                 try {
@@ -110,11 +121,4 @@ class EntryRecordExcelController(
             .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
             .body(bytes)
     }
-
-    private fun String.toDate(name: String): LocalDate =
-        try {
-            LocalDate.parse(this)
-        } catch (_: DateTimeParseException) {
-            throw ExpectedException(HttpStatus.BAD_REQUEST, "$name 은 yyyy-MM-dd 형식이어야 합니다.")
-        }
 }

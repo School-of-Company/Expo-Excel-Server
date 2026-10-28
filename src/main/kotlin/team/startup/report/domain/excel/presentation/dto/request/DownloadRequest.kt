@@ -1,4 +1,4 @@
-package team.startup.report.domain.excel.presentation
+package team.startup.report.domain.excel.presentation.dto.request
 
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import io.swagger.v3.oas.annotations.media.Schema

@@ -1,4 +1,4 @@
-package team.startup.report.domain.excel.presentation
+package team.startup.report.domain.excel.presentation.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
+import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
 import team.startup.report.domain.excel.service.impl.ExcelDownloadService
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException

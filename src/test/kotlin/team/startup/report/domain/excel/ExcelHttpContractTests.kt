@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import team.startup.report.domain.excel.presentation.ExcelController
+import team.startup.report.domain.excel.presentation.controller.ExcelController
 import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.ReportSource

@@ -3,9 +3,9 @@ package team.startup.report.domain.excel.service.impl
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import team.startup.report.domain.excel.presentation.DownloadRequest
-import team.startup.report.domain.excel.presentation.DownloadScope
-import team.startup.report.domain.excel.presentation.ExcelTemplate
+import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
+import team.startup.report.domain.excel.presentation.dto.request.DownloadScope
+import team.startup.report.domain.excel.presentation.dto.request.ExcelTemplate
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.global.client.ApplicationFilter
 import team.startup.report.global.client.ApplicationRow

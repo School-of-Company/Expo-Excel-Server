@@ -1,4 +1,4 @@
-package team.startup.report.domain.excel.presentation
+package team.startup.report.domain.excel.presentation.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -9,47 +9,37 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import team.startup.report.domain.excel.service.impl.ProgramAttendanceExcelService
-import team.startup.report.global.client.SessionType
+import team.startup.report.domain.excel.service.impl.PublicSurveyExcelService
 import team.startup.report.global.exception.ErrorResponse
-import team.startup.report.global.exception.ExpectedException
 import java.io.ByteArrayOutputStream
-import java.util.UUID
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
-class ProgramAttendanceExcelController(
-    private val service: ProgramAttendanceExcelService,
+class PublicSurveyExcelController(
+    private val service: PublicSurveyExcelService,
 ) {
     @Operation(
-        summary = "회차 실제 출석 결과 엑셀 다운로드",
+        summary = "공개 만족도 조사 응답 엑셀 다운로드",
         description =
-            "한 회차의 확정 신청자와 출석 서비스의 실제 출석일·입실 시각을 결합합니다(일반은 참가자 ID, 연수는 연수자 ID). " +
-                "확정 신청 없이 출석한 사람은 별도 시트에 남깁니다. 개인 수기 출석부와 다르며 퇴실·이수 결과는 없습니다.",
+            "행사 공통 공개 설문(직업과 무관한 1개)의 익명 응답을 제출 순으로 응답 1건 = 1행 출력합니다. " +
+                "참가자 명단과 연결하지 않으며 전화번호·경품 정보는 담지 않습니다. 최대 100,000건입니다.",
     )
     @ApiResponses(
         value = [
             ApiResponse(
                 responseCode = "200",
-                description = "XLSX 파일(no-store). 대상이 없어도 머리글만 있는 파일입니다.",
+                description = "XLSX 파일(no-store). 응답이 없어도 머리글만 있는 파일입니다.",
                 content = [
                     Content(
                         mediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         schema = Schema(type = "string", format = "binary"),
                     ),
                 ],
-            ),
-            ApiResponse(
-                responseCode = "400",
-                description = "행사 ID가 UUID가 아님·회차 유형/ID 누락 또는 잘못됨",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "401",
@@ -63,46 +53,31 @@ class ProgramAttendanceExcelController(
             ),
             ApiResponse(
                 responseCode = "404",
-                description = "행사 없음·회차 없음 또는 다른 행사 회차",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-            ApiResponse(
-                responseCode = "410",
-                description = "신청 대상 스냅샷 만료",
+                description = "행사 또는 행사의 공개 설문 없음",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "413",
-                description = "회차 신청 10,000건 초과",
+                description = "응답이 100,000건 초과",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "502",
-                description = "신청·유저·행사·출석 서비스 장애 또는 응답 계약 위반(부분 결과·전원 미출석으로 파일을 만들지 않음)",
+                description = "설문 서비스 장애·응답 형식/건수 불일치(부분 결과로 파일을 만들지 않음)",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
             ApiResponse(
                 responseCode = "503",
-                description = "출석 서비스 연결 미설정",
+                description = "설문 서비스 연결 미설정",
                 content = [Content(schema = Schema(implementation = ErrorResponse::class))],
             ),
         ],
     )
-    @GetMapping("/excel/expos/{expoId}/program-attendances")
-    fun download(
-        @Parameter(description = "박람회 UUID", example = "11111111-1111-1111-1111-111111111111") @PathVariable expoId: String,
-        @Parameter(description = "회차 유형", example = "STANDARD") @RequestParam("programType") programType: SessionType,
-        @Parameter(description = "회차 ID", example = "7") @RequestParam("programId") programId: Long,
+    @GetMapping("/excel/public-surveys/{expo_id}")
+    fun publicSurveyAnswersToExcel(
+        @Parameter(description = "박람회 ID", example = "11111111-1111-1111-1111-111111111111") @PathVariable("expo_id") expoId: String,
     ): ResponseEntity<ByteArray> {
-        val eventId =
-            try {
-                UUID.fromString(expoId).also {
-                    if (!it.toString().equals(expoId, ignoreCase = true)) throw IllegalArgumentException()
-                }
-            } catch (_: IllegalArgumentException) {
-                throw ExpectedException(HttpStatus.BAD_REQUEST, "행사 ID는 UUID여야 합니다.")
-            }
-        val file = service.execute(eventId, programType, programId)
+        val file = service.execute(expoId)
         val bytes =
             file.workbook.use { workbook ->
                 try {

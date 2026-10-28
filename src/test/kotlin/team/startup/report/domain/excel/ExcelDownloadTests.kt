@@ -20,8 +20,8 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import team.startup.report.domain.excel.presentation.ExcelController
-import team.startup.report.domain.excel.presentation.ExcelDownloadController
+import team.startup.report.domain.excel.presentation.controller.ExcelController
+import team.startup.report.domain.excel.presentation.controller.ExcelDownloadController
 import team.startup.report.domain.excel.service.impl.ExcelDownloadService
 import team.startup.report.domain.excel.service.impl.HttpReportSource
 import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExcelServiceImpl

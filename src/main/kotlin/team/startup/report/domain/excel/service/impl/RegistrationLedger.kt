@@ -2,8 +2,8 @@ package team.startup.report.domain.excel.service.impl
 
 import org.springframework.http.HttpStatus
 import org.springframework.web.util.UriUtils
-import team.startup.report.domain.excel.presentation.DownloadRequest
-import team.startup.report.domain.excel.presentation.DownloadScope
+import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
+import team.startup.report.domain.excel.presentation.dto.request.DownloadScope
 import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS

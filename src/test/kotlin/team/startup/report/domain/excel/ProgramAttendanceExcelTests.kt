@@ -19,7 +19,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import team.startup.report.domain.excel.presentation.ProgramAttendanceExcelController
+import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
 import team.startup.report.domain.excel.service.impl.ExcelDownloadService
 import team.startup.report.domain.excel.service.impl.ProgramAttendanceExcelService
 import team.startup.report.global.client.ApplicationClient
