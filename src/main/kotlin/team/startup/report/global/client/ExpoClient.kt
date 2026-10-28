@@ -100,7 +100,7 @@ data class ExpoSummary(
 data class StandardProgramSummary(
     val id: Long,
     val title: String? = null,
-    // ISO 지역 일시. 일정이 없는 회차는 null
+    // ISO 지역 일시 또는 UTC Instant("...Z", Expo#196 이후). parseProgramDateTime으로 KST로 읽는다. 일정이 없는 회차는 null
     val startedAt: String? = null,
     val endedAt: String? = null,
 )

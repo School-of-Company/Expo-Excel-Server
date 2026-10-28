@@ -288,6 +288,23 @@ class ApplicationLedgerTests {
     }
 
     @Test
+    fun `회차 정의 일시가 UTC Instant면 운영일 필터와 운영 일시 열을 KST로 본다`() {
+        // KST 2026-10-31 08:00~09:00. UTC 날짜(10/30)로 비교하면 공급자 필터 결과를 거절했다(#107)
+        application.on(
+            "POST $TARGET",
+            body = snapshot(listOf(target(CURRENT, startedAt = "2026-10-30T23:00:00Z", endedAt = "2026-10-31T00:00:00Z")), null),
+        )
+        val response = send(mapOf("template" to "APPLICATION_LEDGER", "scope" to "FILTER", "filter" to mapOf("eventDate" to "2026-10-31")))
+
+        response.status shouldBe 200
+        XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
+            val ledger = book.getSheetAt(0).values()
+            val start = ledger[0].indexOf("운영 시작")
+            ledger[1].subList(start, start + 2) shouldBe listOf("2026-10-31 08:00", "2026-10-31 09:00")
+        }
+    }
+
+    @Test
     fun `필터 전체는 상태 배열·참가자 검색·직업·운영일·정렬을 Application에 그대로 전달한다`() {
         application.on("POST $TARGET", body = snapshot(listOf(target(CANCELLED, status = "CANCELLED"), target(CURRENT)), null))
         val filter =
@@ -475,6 +492,8 @@ class ApplicationLedgerTests {
         history: List<Any> = listOf(history(1, "CONFIRMED", "2026-10-01T00:00:00Z")),
         answers: Any = emptyMap<String, Any>(),
         questions: Any = QUESTIONS,
+        startedAt: String = "2026-10-31T09:00",
+        endedAt: String = "2026-10-31T10:00",
     ): Map<String, Any?> =
         mapOf(
             "expoId" to EVENT,
@@ -498,8 +517,8 @@ class ApplicationLedgerTests {
                             "id" to program,
                             "programType" to type,
                             "title" to if (type == "TRAINING") "연수$program" else "골든벨",
-                            "startedAt" to "2026-10-31T09:00",
-                            "endedAt" to "2026-10-31T10:00",
+                            "startedAt" to startedAt,
+                            "endedAt" to endedAt,
                             "place" to "강당",
                         ),
                     "questions" to questions,

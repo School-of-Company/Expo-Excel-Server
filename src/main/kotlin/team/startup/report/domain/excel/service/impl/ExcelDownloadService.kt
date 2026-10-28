@@ -26,6 +26,7 @@ import team.startup.report.global.client.DetailPage
 import team.startup.report.global.client.ExpoClient
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.client.UserClient
+import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import team.startup.report.global.exception.ExpectedException
 import java.time.Instant
 import java.time.ZoneId
@@ -207,10 +208,7 @@ class ExcelDownloadService(
             (filter.status == null || row.status in filter.status) &&
             // q·occupation은 User 원천 조건이라 여기서 다시 확인할 수 없다. eventDate는 신청 당시 운영 시작일이다
             (
-                filter.eventDate == null || row.definition
-                    .path("startedAt")
-                    .asString("")
-                    .take(10) == filter.eventDate.toString()
+                filter.eventDate == null || scheduleDate(row.definition.path("startedAt").asString("")) == filter.eventDate.toString()
             ) &&
             (filter.from == null || row.createdAt >= filter.from) &&
             (filter.until == null || row.createdAt < filter.until) &&
@@ -221,6 +219,10 @@ class ExcelDownloadService(
                         .asString("")
                         .contains(filter.search.trim(), ignoreCase = true)
             )
+
+    // UTC Instant면 KST 날짜로 바꿔 비교한다. 읽지 못하는 값은 예전처럼 앞 10자를 날짜로 본다
+    private fun scheduleDate(startedAt: String): String =
+        parseProgramDateTimeOrNull(startedAt)?.toLocalDate()?.toString() ?: startedAt.take(10)
 
     private fun validateTargets(
         request: DownloadRequest,

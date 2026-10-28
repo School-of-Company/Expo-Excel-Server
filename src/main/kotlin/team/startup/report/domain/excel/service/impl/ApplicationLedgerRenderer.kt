@@ -10,6 +10,8 @@ import team.startup.report.global.client.ApplicationStatus
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.client.StandardParticipantDetail
 import team.startup.report.global.client.TraineeDetailItem
+import team.startup.report.global.common.time.PROGRAM_SCHEDULE
+import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -18,6 +20,10 @@ import java.time.format.DateTimeFormatter
 // 원천에 없는 값(대기 순번, 기록 이전 이력)은 만들지 않고 빈칸과 비고·메타 건수로 구분한다.
 
 private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
+
+// 회차 정의 스냅샷의 운영 일시. 읽지 못하는 값은 예전처럼 원문을 보인다
+private fun scheduleText(value: String): String = parseProgramDateTimeOrNull(value)?.format(PROGRAM_SCHEDULE) ?: value.replace('T', ' ')
+
 private val STATUS_LABELS =
     mapOf(
         ApplicationStatus.CONFIRMED to "확정",
@@ -119,8 +125,8 @@ fun renderApplicationLedger(
                 person.notificationPhoneNumber,
                 row.programId.toString(),
                 definition.path("title").asString(null),
-                definition.path("startedAt").asString(null)?.replace('T', ' '),
-                definition.path("endedAt").asString(null)?.replace('T', ' '),
+                definition.path("startedAt").asString(null)?.let(::scheduleText),
+                definition.path("endedAt").asString(null)?.let(::scheduleText),
                 definition.path("place").asString(null),
                 row.admissionRoute?.let { ROUTE_LABELS[it] ?: it },
                 STATUS_LABELS.getValue(row.status),
@@ -159,7 +165,7 @@ fun renderApplicationLedger(
     listOf(
         "항목" to "값",
         "생성 시각(KST)" to KST.format(meta.generatedAt),
-        "시간대" to "Asia/Seoul(KST). 신청·이력 시각은 KST로 변환, 운영 일시는 신청 당시 회차 정의 값",
+        "시간대" to "Asia/Seoul(KST). 신청·이력 시각은 KST로 변환, 운영 일시는 신청 당시 회차 정의 값(오프셋이 붙은 값은 KST로 변환)",
         "행사 ID" to meta.expoId,
         "범위" to meta.scope,
         "선택 신청 수" to meta.selected?.toString(),
