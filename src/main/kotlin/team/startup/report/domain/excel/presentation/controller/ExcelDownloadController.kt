@@ -8,11 +8,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import jakarta.servlet.http.HttpServletRequest
-import org.springframework.http.CacheControl
-import org.springframework.http.HttpHeaders
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -21,7 +18,6 @@ import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
 import team.startup.report.domain.excel.service.ExcelDownloadService
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
-import java.io.ByteArrayOutputStream
 import java.util.UUID
 
 @RestController
@@ -92,7 +88,8 @@ class ExcelDownloadController(
         @Parameter(description = "박람회 UUID", example = "11111111-1111-1111-1111-111111111111") @PathVariable expoId: String,
         @RequestBody request: DownloadRequest,
         servletRequest: HttpServletRequest,
-    ): ResponseEntity<ByteArray> {
+        res: HttpServletResponse,
+    ) {
         if (servletRequest.parameterMap.isNotEmpty()) throw ExpectedException(HttpStatus.BAD_REQUEST, "쿼리 대신 요청 본문의 범위를 사용해 주세요.")
         val eventId =
             try {
@@ -102,23 +99,6 @@ class ExcelDownloadController(
             } catch (_: IllegalArgumentException) {
                 throw ExpectedException(HttpStatus.BAD_REQUEST, "행사 ID는 UUID여야 합니다.")
             }
-        val file = service.execute(eventId, request)
-        val bytes =
-            file.workbook.use { workbook ->
-                try {
-                    ByteArrayOutputStream().use { output ->
-                        workbook.write(output)
-                        output.toByteArray()
-                    }
-                } finally {
-                    workbook.dispose()
-                }
-            }
-        return ResponseEntity
-            .ok()
-            .cacheControl(CacheControl.noStore())
-            .header(HttpHeaders.CONTENT_DISPOSITION, file.contentDisposition)
-            .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-            .body(bytes)
+        service.execute(eventId, request).respond(res)
     }
 }
