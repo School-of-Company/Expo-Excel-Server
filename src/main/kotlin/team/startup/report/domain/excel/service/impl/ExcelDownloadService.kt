@@ -220,7 +220,9 @@ class ExcelDownloadService(
                         .contains(filter.search.trim(), ignoreCase = true)
             )
 
-    // UTC Instant면 KST 날짜로 바꿔 비교한다. 읽지 못하는 값은 예전처럼 앞 10자를 날짜로 본다
+    // 운영 시작의 KST 날짜("yyyy-MM-dd"). "2026-10-30T23:00:00Z"는 KST로 10/31 08:00이라 "2026-10-31"이다.
+    // 날짜만 있거나("2026-10-31") 빈 값처럼 일시로 해석되지 않으면, 이 변경 전과 같이 문자열 앞 10자를 날짜로 쓴다
+    // (예: "2026-10-31" → "2026-10-31", "" → "")
     private fun scheduleDate(startedAt: String): String =
         parseProgramDateTimeOrNull(startedAt)?.toLocalDate()?.toString() ?: startedAt.take(10)
 

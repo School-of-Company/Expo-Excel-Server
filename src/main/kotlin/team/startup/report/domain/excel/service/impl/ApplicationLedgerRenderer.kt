@@ -21,7 +21,8 @@ import java.time.format.DateTimeFormatter
 
 private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
 
-// 회차 정의 스냅샷의 운영 일시. 읽지 못하는 값은 예전처럼 원문을 보인다
+// 회차 정의 스냅샷의 운영 일시를 "yyyy-MM-dd HH:mm"(KST)로 쓴다. "2026-10-30T23:00:00Z"는 "2026-10-31 08:00"이 된다.
+// 날짜만 있거나("2026-10-31") 형식이 깨진 값처럼 일시로 해석되지 않으면, 이 변경 전과 같이 T만 공백으로 바꾼 원문을 쓴다
 private fun scheduleText(value: String): String = parseProgramDateTimeOrNull(value)?.format(PROGRAM_SCHEDULE) ?: value.replace('T', ' ')
 
 private val STATUS_LABELS =
