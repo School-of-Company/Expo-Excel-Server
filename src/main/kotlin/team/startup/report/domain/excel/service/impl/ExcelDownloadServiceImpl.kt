@@ -435,9 +435,10 @@ class ExcelDownloadServiceImpl(
         check(trainees.map { it.traineeId }.toSet() == traineeIds && trainees.size == traineeIds.size)
         // 이름·연락처·이력·접수번호가 빠진 원천은 정상 미응답처럼 보이므로 부분 파일을 만들지 않는다
         check(rows.all { it.receiptNumber != null && it.history != null })
+        val byTrainee = rows.groupBy { it.traineeId }
         check(
             trainees.all { trainee ->
-                rows.filter { it.traineeId == trainee.traineeId }.all { it.participantId == trainee.participantId }
+                byTrainee[trainee.traineeId].orEmpty().all { it.participantId == trainee.participantId }
             },
         )
         val timestamp = Instant.now()
