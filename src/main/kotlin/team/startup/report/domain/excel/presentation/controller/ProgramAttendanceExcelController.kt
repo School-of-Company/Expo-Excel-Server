@@ -7,11 +7,8 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
-import org.springframework.http.CacheControl
-import org.springframework.http.HttpHeaders
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
@@ -20,7 +17,6 @@ import team.startup.report.domain.excel.service.ProgramAttendanceExcelService
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
-import java.io.ByteArrayOutputStream
 import java.util.UUID
 
 @RestController
@@ -98,7 +94,8 @@ class ProgramAttendanceExcelController(
         @Parameter(description = "박람회 UUID", example = "11111111-1111-1111-1111-111111111111") @PathVariable expoId: String,
         @Parameter(description = "회차 유형", example = "STANDARD") @RequestParam("programType") programType: SessionType,
         @Parameter(description = "회차 ID", example = "7") @RequestParam("programId") programId: Long,
-    ): ResponseEntity<ByteArray> {
+        res: HttpServletResponse,
+    ) {
         val eventId =
             try {
                 UUID.fromString(expoId).also {
@@ -107,23 +104,6 @@ class ProgramAttendanceExcelController(
             } catch (_: IllegalArgumentException) {
                 throw ExpectedException(HttpStatus.BAD_REQUEST, "행사 ID는 UUID여야 합니다.")
             }
-        val file = service.execute(eventId, programType, programId)
-        val bytes =
-            file.workbook.use { workbook ->
-                try {
-                    ByteArrayOutputStream().use { output ->
-                        workbook.write(output)
-                        output.toByteArray()
-                    }
-                } finally {
-                    workbook.dispose()
-                }
-            }
-        return ResponseEntity
-            .ok()
-            .cacheControl(CacheControl.noStore())
-            .header(HttpHeaders.CONTENT_DISPOSITION, file.contentDisposition)
-            .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-            .body(bytes)
+        service.execute(eventId, programType, programId).respond(res)
     }
 }

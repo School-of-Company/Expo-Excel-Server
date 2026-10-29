@@ -7,11 +7,8 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
-import org.springframework.http.CacheControl
-import org.springframework.http.HttpHeaders
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
@@ -19,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController
 import team.startup.report.domain.excel.service.EntryRecordExcelService
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
-import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -95,25 +91,9 @@ class EntryRecordExcelController(
         @RequestParam("from", required = false) from: String?,
         @Parameter(description = "입장 날짜 끝(포함, yyyy-MM-dd). from과 함께 지정", example = "2026-10-20")
         @RequestParam("to", required = false) to: String?,
-    ): ResponseEntity<ByteArray> {
-        val file = service.execute(expoId, from?.toDate("from"), to?.toDate("to"))
-        val bytes =
-            file.workbook.use { workbook ->
-                try {
-                    ByteArrayOutputStream().use { output ->
-                        workbook.write(output)
-                        output.toByteArray()
-                    }
-                } finally {
-                    workbook.dispose()
-                }
-            }
-        return ResponseEntity
-            .ok()
-            .cacheControl(CacheControl.noStore())
-            .header(HttpHeaders.CONTENT_DISPOSITION, file.contentDisposition)
-            .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-            .body(bytes)
+        res: HttpServletResponse,
+    ) {
+        service.execute(expoId, from?.toDate("from"), to?.toDate("to")).respond(res)
     }
 
     private fun String.toDate(name: String): LocalDate =
