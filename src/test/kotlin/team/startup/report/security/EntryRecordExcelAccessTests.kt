@@ -71,7 +71,14 @@ class EntryRecordExcelAccessTests {
                     "walkIn" to listOf(mapOf("date" to "2026-10-19", "category" to "TEACHER", "count" to 3)),
                 ),
         )
-        user.on("POST /internal/standard-participants/names", body = listOf(mapOf("participantId" to 7001, "name" to "홍길동")))
+        user.on(
+            "POST /internal/participants/entry-cards",
+            body =
+                mapOf(
+                    "standardParticipants" to listOf(mapOf("participantId" to 7001, "name" to "홍길동", "occupation" to "TEACHER")),
+                    "trainees" to emptyList<Any>(),
+                ),
+        )
 
         val response = send("/excel/entry-records/$EVENT")
 
@@ -79,7 +86,7 @@ class EntryRecordExcelAccessTests {
         response.headers().firstValue("Content-Disposition").get() shouldContain "filename*=UTF-8''%EC%9E%85%EC%9E%A5%EA%B8%B0%EB%A1%9D_"
         response.headers().firstValue("Cache-Control").get() shouldContain "no-store"
         XSSFWorkbook(ByteArrayInputStream(response.body())).use {
-            it.getSheetAt(0).values()[1][3] shouldBe "홍길동"
+            it.getSheetAt(0).values()[1].subList(3, 5) shouldBe listOf("홍길동", "교원")
             it.getSheetAt(1).values()[1] shouldBe listOf("2026-10-19", "교원", "3.0")
         }
         attendance.requests.single().token shouldBe "attendance-secret"
