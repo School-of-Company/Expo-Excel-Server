@@ -4,13 +4,15 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.util.UriUtils
-import team.startup.report.domain.excel.renderer.EntryNames
+import team.startup.report.domain.excel.renderer.EntrySubjects
 import team.startup.report.domain.excel.renderer.renderEntryRecords
 import team.startup.report.domain.excel.service.EntryRecordExcelService
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.global.client.attendance.AttendanceClient
 import team.startup.report.global.client.attendance.EntryRecord
 import team.startup.report.global.client.attendance.WalkInCount
+import team.startup.report.global.client.user.StandardParticipantEntryCard
+import team.startup.report.global.client.user.TraineeEntryCard
 import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
@@ -19,8 +21,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * GET /excel/entry-records/{expo_id}. 참여 서비스 입장 기록을 끝 페이지까지 읽고 일반 참가자·연수자 이름을 유저 서비스에서 채운다.
- * 한 페이지라도 실패하면 부분 결과로 파일을 만들지 않는다. 이름을 찾지 못한 대상은 빈 칸이다. 이름·토큰은 로그에 남기지 않는다.
+ * GET /excel/entry-records/{expo_id}. 참여 서비스 입장 기록을 끝 페이지까지 읽고 일반 참가자·연수자 이름·직업을 유저 서비스에서
+ * 다운로드 시점 값으로 채운다. 한 페이지라도 실패하면 부분 결과로 파일을 만들지 않는다. 유저 서비스가 돌려주지 않은 대상(삭제·다른 행사)은
+ * 이름 빈 칸, 직업 미확인이다. 이름·토큰은 로그에 남기지 않는다.
  */
 @Service
 class EntryRecordExcelServiceImpl(
@@ -38,10 +41,10 @@ class EntryRecordExcelServiceImpl(
         valid(from == null || to == null || from <= to, "from은 to보다 늦을 수 없습니다.")
         return try {
             val (records, walkIn) = readAll(expoId, from, to)
-            val names = names(expoId, records)
+            val subjects = subjects(expoId, records)
             val timestamp = LocalDateTime.now(SEOUL).format(TIMESTAMP)
             val filename = UriUtils.encode("입장기록_$timestamp.xlsx", Charsets.UTF_8)
-            ExcelFile("attachment; filename*=UTF-8''$filename", renderEntryRecords(records, names, walkIn))
+            ExcelFile("attachment; filename*=UTF-8''$filename", renderEntryRecords(records, subjects, walkIn))
         } catch (e: ExpectedException) {
             throw e
         } catch (e: Exception) {
@@ -79,54 +82,27 @@ class EntryRecordExcelServiceImpl(
         return records to walkIn
     }
 
-    private fun names(
+    /** 일반 참가자·연수자 ID를 각각 중복 없이 1,000개씩 나눠, 두 목록을 한 요청에 담아 묻는다. 실패는 예외로 올라가 전체 실패다. */
+    private fun subjects(
         expoId: String,
         records: List<EntryRecord>,
-    ): EntryNames {
-        fun ids(type: String) = records.filter { it.subjectType == type }.mapNotNull { it.subjectId }.distinct()
-        return EntryNames(
-            standard =
-                resolveNames(ids("STANDARD")) { batch ->
-                    user.standardParticipantNames(expoId, batch)?.associate { it.participantId to it.name }
-                },
-            trainee =
-                resolveNames(ids("TRAINEE")) { batch ->
-                    user.traineeNames(expoId, batch)?.associate { it.traineeId to it.name }
-                },
-        )
-    }
-
-    /**
-     * 유저 서비스는 요청 ID가 하나라도 없으면 전체를 404로 거절한다(null). 그럴 때는 반으로 나눠 다시 물어 없는 ID만 빈 칸으로 남긴다.
-     * 404 외 실패는 예외로 올라가 전체 실패다. 배치당 [MAX_NAME_CALLS_PER_BATCH]번을 넘기면 더 묻지 않고 남은 ID는 빈 칸이다.
-     */
-    private fun resolveNames(
-        ids: List<Long>,
-        fetch: (List<Long>) -> Map<Long, String?>?,
-    ): Map<Long, String> {
-        val result = mutableMapOf<Long, String>()
-
-        ids.chunked(UserClient.MAX_NAME_IDS).forEach { chunk ->
-            var calls = 0
-
-            fun resolve(batch: List<Long>) {
-                if (batch.isEmpty() || calls >= MAX_NAME_CALLS_PER_BATCH) return
-                calls++
-                val found = fetch(batch)
-                if (found != null) {
-                    batch.forEach { id -> found[id]?.let { result[id] = it } }
-                } else if (batch.size > 1) {
-                    val half = batch.size / 2
-                    resolve(batch.subList(0, half))
-                    resolve(batch.subList(half, batch.size))
-                }
-            }
-            resolve(chunk)
-            if (calls >= MAX_NAME_CALLS_PER_BATCH) {
-                log.warn("이름 조회 호출 상한 도달: 배치 {}건 중 일부 이름을 빈 칸으로 둡니다", chunk.size)
-            }
+    ): EntrySubjects {
+        fun ids(type: String) =
+            records
+                .filter { it.subjectType == type }
+                .mapNotNull { it.subjectId }
+                .distinct()
+                .chunked(UserClient.MAX_ENTRY_CARD_IDS)
+        val standardIds = ids("STANDARD")
+        val traineeIds = ids("TRAINEE")
+        val standard = mutableMapOf<Long, StandardParticipantEntryCard>()
+        val trainee = mutableMapOf<Long, TraineeEntryCard>()
+        repeat(maxOf(standardIds.size, traineeIds.size)) { i ->
+            val cards = user.entryCards(expoId, standardIds.getOrElse(i) { emptyList() }, traineeIds.getOrElse(i) { emptyList() })
+            cards.standardParticipants.associateByTo(standard) { it.participantId }
+            cards.trainees.associateByTo(trainee) { it.traineeId }
         }
-        return result
+        return EntrySubjects(standard, trainee)
     }
 
     private fun valid(
@@ -140,9 +116,6 @@ class EntryRecordExcelServiceImpl(
         // 힙·Gateway 대기를 확인할 수 없어 보수적으로 둔 값이다(#65, 실측 후 조정). 엑셀 한 시트 행 한도(1,048,576) 안이다
         const val MAX_RECORDS = 300_000L
 
-        // 꽉 찬 배치(10,000개)에서 없는 ID 하나를 찾는 데 약 2×log2(10,000)+1 ≈ 29번이 든다. 100이면 없는 ID 3개까지는 모두 찾고,
-        // 배치 전체가 없는 최악(2n−1 ≈ 2만 번 순차 호출)에서도 다운로드가 시간 초과 전에 끝난다.
-        const val MAX_NAME_CALLS_PER_BATCH = 100
         val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
         val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }

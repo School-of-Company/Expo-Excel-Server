@@ -65,6 +65,32 @@ class UserClient(
         return resilience.write.fetchOrNull { api.traineeNames(mapOf("expoId" to expoId, "traineeIds" to traineeIds)) }
     }
 
+    /**
+     * 입장 기록 엑셀용 이름·직업. 없는 ID·다른 행사 ID는 404 없이 응답에서 빠진다(User `POST /internal/participants/entry-cards`).
+     * 요청하지 않은 ID나 중복 ID가 오면 응답 형식 오류로 실패한다. 응답의 전화번호·동의 정보는 읽지 않는다.
+     */
+    fun entryCards(
+        expoId: String,
+        participantIds: List<Long>,
+        traineeIds: List<Long>,
+    ): EntryCards {
+        require(participantIds.size <= MAX_ENTRY_CARD_IDS && traineeIds.size <= MAX_ENTRY_CARD_IDS)
+        val cards =
+            resilience.write.fetchRequired {
+                api.entryCards(mapOf("expoId" to expoId, "standardParticipantIds" to participantIds, "traineeIds" to traineeIds))
+            }
+        check(
+            onlyRequested(cards.standardParticipants.map { it.participantId }, participantIds) &&
+                onlyRequested(cards.trainees.map { it.traineeId }, traineeIds),
+        ) { "User 서비스 응답 형식 오류" }
+        return cards
+    }
+
+    private fun onlyRequested(
+        returned: List<Long>,
+        requested: List<Long>,
+    ) = returned.size == returned.toSet().size && requested.toSet().containsAll(returned)
+
     companion object {
         const val NAME = "User"
         const val PAGE_SIZE = 500
@@ -74,6 +100,9 @@ class UserClient(
 
         // User GetStandardParticipantNamesReqDto.MAX_PARTICIPANT_IDS·GetTraineeNamesReqDto.MAX_TRAINEE_IDS(각 10,000)와 같다.
         const val MAX_NAME_IDS = 10_000
+
+        // User GetEntryCardsReqDto.MAX_IDS(목록마다 1,000)와 같다.
+        const val MAX_ENTRY_CARD_IDS = 1_000
     }
 }
 
@@ -112,4 +141,9 @@ interface UserApi {
     fun traineeNames(
         @RequestBody body: Map<String, Any>,
     ): List<TraineeName>?
+
+    @PostMapping("/internal/participants/entry-cards", consumes = [MediaType.APPLICATION_JSON_VALUE])
+    fun entryCards(
+        @RequestBody body: Map<String, Any>,
+    ): EntryCards?
 }
