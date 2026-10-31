@@ -4,14 +4,18 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.global.client.attendance.EntryRecord
 import team.startup.report.global.client.attendance.WalkInCount
+import team.startup.report.global.client.user.StandardParticipantEntryCard
+import team.startup.report.global.client.user.TraineeEntryCard
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-/** 이름을 채운 입장 기록. 일반 참가자·연수자 이름은 ID별로 찾고, 못 찾으면 빈 칸이다. 이름은 로그에 남기지 않는다. */
-class EntryNames(
-    val standard: Map<Long, String> = emptyMap(),
-    val trainee: Map<Long, String> = emptyMap(),
+/** 유저 서비스가 돌려준 일반 참가자·연수자(ID별). 없는 대상은 이름 빈 칸, 직업 미확인이다. 이름은 로그에 남기지 않는다. */
+class EntrySubjects(
+    val standard: Map<Long, StandardParticipantEntryCard> = emptyMap(),
+    val trainee: Map<Long, TraineeEntryCard> = emptyMap(),
 )
+
+private const val UNKNOWN_OCCUPATION = "미확인"
 
 private val OCCURRED_AT_OUTPUT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
@@ -33,10 +37,10 @@ fun subjectLabel(value: String) = SUBJECT_LABELS[value] ?: value
 
 fun participationLabel(value: String) = PARTICIPATION_LABELS[value] ?: value
 
-/** 시트 "입장 기록"(발생 시각 순)과 "간편입장 집계"(날짜, 참가 유형, 인원). 기록이 없어도 머리글만 있는 두 시트를 만든다. */
+/** 시트 "입장 기록"(발생 시각 순, 이름 오른쪽에 직업)과 "간편입장 집계"(날짜, 참가 유형, 인원). 기록이 없어도 머리글만 있는 두 시트를 만든다. */
 fun renderEntryRecords(
     records: List<EntryRecord>,
-    names: EntryNames,
+    subjects: EntrySubjects,
     walkIn: List<WalkInCount>,
 ): SXSSFWorkbook {
     val workbook = newWorkbook(500)
@@ -44,7 +48,7 @@ fun renderEntryRecords(
     val bodyStyle = workbook.createCellStyle().apply { thinBorders() }
 
     val sheet = workbook.createSheet("입장 기록").apply { defaultColumnWidth = 20 }
-    sheet.writeRow(0, listOf("일시", "구분", "대상 종류", "이름", "종이 QR 구분", "종이 QR 코드", "스캐너"), headerStyle)
+    sheet.writeRow(0, listOf("일시", "구분", "대상 종류", "이름", "직업", "종이 QR 구분", "종이 QR 코드", "스캐너"), headerStyle)
     records.forEachIndexed { index, record ->
         sheet.writeRow(
             index + 1,
@@ -52,7 +56,8 @@ fun renderEntryRecords(
                 occurredAt(record.occurredAt),
                 eventLabel(record.eventType),
                 subjectLabel(record.subjectType),
-                name(record, names),
+                name(record, subjects),
+                occupation(record, subjects),
                 record.category?.let(::participationLabel),
                 record.paperCode,
                 record.scanner,
@@ -83,14 +88,38 @@ fun renderEntryRecords(
 
 private fun name(
     record: EntryRecord,
-    names: EntryNames,
+    subjects: EntrySubjects,
 ): String? {
     val id = record.subjectId ?: return null
     return when (record.subjectType) {
-        "STANDARD" -> names.standard[id]
-        "TRAINEE" -> names.trainee[id]
+        "STANDARD" -> subjects.standard[id]?.name
+        "TRAINEE" -> subjects.trainee[id]?.name
         else -> null
     }
+}
+
+// 일반 참가자는 저장된 직업(알 수 없는 코드는 원문), 확인된 연수자는 교원이다. 종이 QR·없는 대상·직업 미기록은 추측하지 않고 미확인이다.
+private fun occupation(
+    record: EntryRecord,
+    subjects: EntrySubjects,
+): String {
+    val id = record.subjectId ?: return UNKNOWN_OCCUPATION
+    return when (record.subjectType) {
+        "STANDARD" -> {
+            subjects.standard[id]
+                ?.occupation
+                ?.takeIf { it.isNotBlank() }
+                ?.let { PARTICIPANT_TYPE_LABELS[it] ?: it }
+        }
+
+        "TRAINEE" -> {
+            subjects.trainee[id]?.let { PARTICIPANT_TYPE_LABELS.getValue("TEACHER") }
+        }
+
+        else -> {
+            null
+        }
+    } ?: UNKNOWN_OCCUPATION
 }
 
 // 공급자 형식이 달라도 파일은 만들어야 하므로 못 읽으면 원문을 쓴다

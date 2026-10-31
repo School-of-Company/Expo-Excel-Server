@@ -73,3 +73,22 @@ data class TraineeName(
     val traineeId: Long,
     val name: String?,
 )
+
+/** User `EntryCardsResDto` 중 입장 기록 엑셀에 쓰는 값만 받는다. 전화번호·동의 정보는 받지 않는다. */
+data class EntryCards(
+    val standardParticipants: List<StandardParticipantEntryCard>,
+    val trainees: List<TraineeEntryCard>,
+)
+
+/** [occupation]은 User `Occupation` 이름이고 기록되지 않았으면 null이다. */
+data class StandardParticipantEntryCard(
+    val participantId: Long,
+    val name: String?,
+    val occupation: String?,
+)
+
+/** 연수자는 직업이 없다(운영 기준상 모두 교원). */
+data class TraineeEntryCard(
+    val traineeId: Long,
+    val name: String?,
+)
