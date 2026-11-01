@@ -2,21 +2,26 @@ package team.startup.report.domain.excel.service.impl
 
 import org.springframework.http.HttpStatus
 import org.springframework.web.util.UriUtils
-import team.startup.report.domain.excel.presentation.DownloadRequest
-import team.startup.report.domain.excel.presentation.DownloadScope
+import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
+import team.startup.report.domain.excel.presentation.dto.request.DownloadScope
+import team.startup.report.domain.excel.renderer.darkHeaderStyle
+import team.startup.report.domain.excel.renderer.ledgerCell
+import team.startup.report.domain.excel.renderer.newWorkbook
+import team.startup.report.domain.excel.renderer.thinBorders
+import team.startup.report.domain.excel.renderer.writeRow
 import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.domain.excel.service.informationAnswers
 import team.startup.report.domain.excel.service.regionLabel
-import team.startup.report.global.client.ApplicationClient
-import team.startup.report.global.client.FieldVisit
-import team.startup.report.global.client.FieldVisitEvent
-import team.startup.report.global.client.PreregistrationRowType
-import team.startup.report.global.client.PreregistrationStatus
-import team.startup.report.global.client.PreregistrationTarget
-import team.startup.report.global.client.RegistrationFilter
-import team.startup.report.global.client.StandardParticipantDetail
+import team.startup.report.global.client.application.ApplicationClient
+import team.startup.report.global.client.application.FieldVisit
+import team.startup.report.global.client.application.FieldVisitEvent
+import team.startup.report.global.client.application.PreregistrationRowType
+import team.startup.report.global.client.application.PreregistrationStatus
+import team.startup.report.global.client.application.PreregistrationTarget
+import team.startup.report.global.client.application.RegistrationFilter
+import team.startup.report.global.client.user.StandardParticipantDetail
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
@@ -146,10 +151,11 @@ class RegistrationLedger(
             }
         val source = if (includeVisits) readFieldVisits(application, expoId, filter.visitDate) else FieldVisitData(emptyList(), emptyList())
         check(people.keys.containsAll(source.items.map { it.participantId }))
+        val selectedKeys = request.keys?.toHashSet()
         val visits =
             source.items.filter { visit ->
                 if (request.scope == DownloadScope.SELECTED) {
-                    visit.key in request.keys!!
+                    visit.key in selectedKeys!!
                 } else {
                     val person = people.getValue(visit.participantId)
                     (filter.fieldStatus == null || visit.status == filter.fieldStatus) &&

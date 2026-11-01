@@ -28,8 +28,8 @@ docker compose up -d --wait
 ```
 
 입장 기록 엑셀(`GET /excel/entry-records/{expo_id}?from=&to=`)은 Expo-Attendance-Server의
-`GET /internal/expos/{expoId}/entry-records`(Attendance #150)를 페이지(2000건)씩 끝까지 읽고, 이름은 유저 서비스
-`names` 내부 API로 채웁니다. 연결 설정 `ATTENDANCE_SERVICE_URL`과 `ATTENDANCE_INTERNAL_TOKEN`(Attendance `INTERNAL_TOKEN`과 같은 값)은
+`GET /internal/expos/{expoId}/entry-records`(Attendance #150)를 페이지(2000건)씩 끝까지 읽고, 이름과 직업은 유저 서비스
+`POST /internal/participants/entry-cards`(목록마다 1000건)로 다운로드 시점 값을 채웁니다. 연수자는 교원, 종이 QR·삭제된 대상·직업 미기록은 `미확인`입니다. 연결 설정 `ATTENDANCE_SERVICE_URL`과 `ATTENDANCE_INTERNAL_TOKEN`(Attendance `INTERNAL_TOKEN`과 같은 값)은
 **선택**입니다. 둘 다 비우면 이 다운로드만 503이고 다른 엑셀과 기동에는 영향이 없으며, 하나만 넣으면 기동에 실패합니다.
 `from`/`to`(`yyyy-MM-dd`)는 함께 주거나 모두 생략합니다.
 

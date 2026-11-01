@@ -1,6 +1,7 @@
 package team.startup.report.security
 
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -9,11 +10,15 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import team.startup.report.global.client.StubProvider
+import team.startup.report.global.security.ExcelAccessInterceptor
 import team.startup.report.support.TestJwt
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 private const val EVENT = "11111111-1111-1111-1111-111111111111"
 private const val ACCESS = "GET /internal/expo/$EVENT/admin-access"
@@ -199,6 +204,37 @@ class ExcelAccessTests {
         user.requests.size shouldBe 1
         user.on("GET /internal/trainees/10/details", body = trainee() + ("traineeId" to 20))
         send("/excel/trainee/10").statusCode() shouldBe 502
+    }
+
+    @Test
+    fun `동시 다운로드가 한도를 넘으면 기다리지 않고 503이고 끝난 요청은 성공 실패와 관계없이 자리를 돌려준다`() {
+        allowStandard()
+        val details = "GET /internal/expos/$EVENT/standard-participants/details?size=500"
+        val ok = user.routes.getValue(details)
+        val gate = CountDownLatch(1)
+        user.routes[details] = {
+            gate.await()
+            ok(it)
+        }
+        val limit = ExcelAccessInterceptor.MAX_CONCURRENT_DOWNLOADS
+        val client = HttpClient.newHttpClient()
+        val request =
+            HttpRequest
+                .newBuilder(URI("http://127.0.0.1:$port/excel/standard/$EVENT"))
+                .header("Authorization", "Bearer ${TestJwt.token("ROLE_ADMIN")}")
+                .build()
+        val responses = (0..limit).map { client.sendAsync(request, HttpResponse.BodyHandlers.ofString()) }
+        // 자리를 얻은 요청은 모두 gate에서 멈추므로 먼저 끝나는 것은 거절된 1건뿐이다
+        val first = CompletableFuture.anyOf(*responses.toTypedArray()).get(10, TimeUnit.SECONDS) as HttpResponse<*>
+        first.statusCode() shouldBe 503
+        gate.countDown()
+        responses.map { it.get(10, TimeUnit.SECONDS).statusCode() }.sorted() shouldBe List(limit) { 200 } + 503
+
+        // 4xx는 회로 차단기에 세지 않으므로 반복 실패가 회로를 열지 않는다
+        user.on(details, 404, "missing")
+        repeat(limit + 1) { send("/excel/standard/$EVENT").statusCode() shouldNotBe 503 }
+        allowStandard()
+        send("/excel/standard/$EVENT").statusCode() shouldBe 200
     }
 
     private fun send(

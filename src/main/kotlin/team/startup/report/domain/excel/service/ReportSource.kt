@@ -60,7 +60,7 @@ data class TrainingProgram(
     val id: Long,
     val title: String?,
     val category: TrainingCategory?,
-    // Expo 저장 형식 "yyyy-MM-dd HH:mm", v1 형식 "yyyy-MM-ddTHH:mm" 모두 허용
+    // Expo 저장 형식 "yyyy-MM-dd HH:mm", v1 형식 "yyyy-MM-ddTHH:mm" 모두 허용. 오프셋이 붙은 값은 KST로 바꾼다
     val startedAt: String,
     val endedAt: String,
 ) {

@@ -13,14 +13,14 @@ import team.startup.report.domain.excel.service.TrainingProgram
 import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.domain.excel.service.informationAnswers
 import team.startup.report.domain.excel.service.standardInformation
-import team.startup.report.global.client.ApplicationClient
-import team.startup.report.global.client.DetailPage
-import team.startup.report.global.client.ExpoClient
-import team.startup.report.global.client.InformationResDto
-import team.startup.report.global.client.StandardParticipantDetail
-import team.startup.report.global.client.TraineeDetailItem
-import team.startup.report.global.client.TrainingApplication
-import team.startup.report.global.client.UserClient
+import team.startup.report.global.client.application.ApplicationClient
+import team.startup.report.global.client.application.TrainingApplication
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.user.DetailPage
+import team.startup.report.global.client.user.InformationResDto
+import team.startup.report.global.client.user.StandardParticipantDetail
+import team.startup.report.global.client.user.TraineeDetailItem
+import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.security.ExcelAccessInterceptor
 import tools.jackson.databind.JsonNode
 
