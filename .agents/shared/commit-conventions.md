@@ -30,6 +30,8 @@ history is consistent and different, follow it and skip the rest of this section
 - **Scope**: see "Choosing the Scope" below
 - **Description**: 한글, 명사형 종결, 마침표 없음
   - Good: `레포 선택 드롭다운 구현`, `PR 생성 시 base branch 조회 실패 처리`
+  - **Say the intent, not the implementation.** The diff already shows what was edited; the subject says
+    what is different now. `빈 저장소에서 PR 생성이 500으로 끝나던 문제 해결` over `try/catch 추가`
 - Subject line only (no body) — except for a breaking change, which gets a `BREAKING CHANGE: <설명>` body
 - Never add AI as a co-author
 
