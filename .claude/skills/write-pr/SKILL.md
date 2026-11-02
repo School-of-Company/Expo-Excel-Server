@@ -1,7 +1,7 @@
 ---
 name: write-pr
 description: Generate PR title, body, and labels from commits since the base branch, then create the PR on GitHub. Handles base branch detection, label selection, and PR creation end-to-end.
-allowed-tools: Bash(git *:*), Bash(bash *create-pr.sh:*), Bash(cat *:*), Read, Write
+allowed-tools: Bash(git *:*), Bash(gh *:*), Bash(bash *create-pr.sh:*), Bash(cat *:*), Bash(rm PR_BODY.md:*), AskUserQuestion, Read, Write
 ---
 
 ## Step 1 — Find the Base Branch
