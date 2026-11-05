@@ -1,6 +1,5 @@
 package team.startup.report.global.client.user
 
-import team.startup.report.domain.excel.service.ApplicationType
 import tools.jackson.databind.JsonNode
 
 /** User `InformationResDto`. 신청 답변은 문항 제목, 설문 답변은 문항 ID가 키다. [questions]는 제출 당시 스냅샷이고 없으면 null. */

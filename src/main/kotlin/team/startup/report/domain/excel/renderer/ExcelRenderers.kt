@@ -16,8 +16,8 @@ import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
-import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
+import team.startup.report.global.client.expo.TrainingCategory
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
