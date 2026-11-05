@@ -47,7 +47,11 @@ class ProgramAttendanceExcelServiceImpl(
         programId: Long,
     ): ExcelFile {
         if (programId <= 0) throw ExpectedException(HttpStatus.BAD_REQUEST, "회차 ID는 양수여야 합니다.")
-        return try {
+        return wrapExcelFailure(
+            { "출석 원천 조회 또는 파일 생성에 실패했습니다." },
+            HttpStatus.BAD_GATEWAY,
+            logFailure = { e -> log.error("프로그램 출석 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message) },
+        ) {
             val id = expoId.toString()
             if (expo.expo(id) == null) throw ExpectedException(HttpStatus.NOT_FOUND, "박람회를 찾을 수 없습니다.")
             val program =
@@ -103,12 +107,6 @@ class ProgramAttendanceExcelServiceImpl(
                 "attachment; filename=\"Program_Attendance_${programType}_$programId.xlsx\"",
                 renderProgramAttendance(programType, programId, program, confirmed, mismatched),
             )
-        } catch (e: ExpectedException) {
-            throw e
-        } catch (e: Exception) {
-            // 메시지는 공급자 이름과 상태만 담는다(원인·URL·본문 없음)
-            log.error("프로그램 출석 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message)
-            throw ExpectedException(HttpStatus.BAD_GATEWAY, "출석 원천 조회 또는 파일 생성에 실패했습니다.")
         }
     }
 }

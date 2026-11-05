@@ -58,9 +58,13 @@ class ExcelDownloadServiceImpl(
     ): ExcelFile {
         val registrationLedger = request.template == ExcelTemplate.REGISTRATION_LEDGER
         if (registrationLedger) registration.validate(request) else validate(request)
-        return try {
+        return wrapExcelFailure(
+            { "엑셀 원천 조회 또는 파일 생성에 실패했습니다." },
+            HttpStatus.BAD_GATEWAY,
+            logFailure = {},
+        ) {
             if (expo.expo(expoId.toString()) == null) throw ExpectedException(HttpStatus.NOT_FOUND, "박람회를 찾을 수 없습니다.")
-            if (registrationLedger) return registration.render(expoId, request)
+            if (registrationLedger) return@wrapExcelFailure registration.render(expoId, request)
             val rows =
                 targets(expoId, request).map { it.application }.let { rows ->
                     if (request.scope == DownloadScope.FILTER && request.template == ExcelTemplate.ATTENDANCE) {
@@ -71,10 +75,6 @@ class ExcelDownloadServiceImpl(
                 }
             validateTargets(request, rows)
             render(expoId.toString(), request, rows)
-        } catch (e: ExpectedException) {
-            throw e
-        } catch (_: Exception) {
-            throw ExpectedException(HttpStatus.BAD_GATEWAY, "엑셀 원천 조회 또는 파일 생성에 실패했습니다.")
         }
     }
 
@@ -453,12 +453,5 @@ class ExcelDownloadServiceImpl(
                 LedgerMeta(timestamp, expoId, request.scope.name, request.filter, request.applicationIds?.size),
             ),
         )
-    }
-
-    private fun valid(
-        condition: Boolean,
-        message: String,
-    ) {
-        if (!condition) throw ExpectedException(HttpStatus.BAD_REQUEST, message)
     }
 }

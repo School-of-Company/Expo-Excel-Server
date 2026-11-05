@@ -468,10 +468,3 @@ private fun submittedAnswers(snapshot: JsonNode) =
     }
 
 private fun JsonNode.text(field: String): String? = get(field)?.takeIf { it.isString }?.stringValue()
-
-private fun valid(
-    condition: Boolean,
-    message: String,
-) {
-    if (!condition) throw ExpectedException(HttpStatus.BAD_REQUEST, message)
-}

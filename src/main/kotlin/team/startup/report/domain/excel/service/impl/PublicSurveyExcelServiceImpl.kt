@@ -27,17 +27,15 @@ class PublicSurveyExcelServiceImpl(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun execute(expoId: String): ExcelFile =
-        try {
+        wrapExcelFailure(
+            { "설문 응답 원천 조회 또는 파일 생성에 실패했습니다." },
+            HttpStatus.BAD_GATEWAY,
+            logFailure = { e -> log.error("공개 설문 응답 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message) },
+        ) {
             val (first, answers) = readAll(expoId)
             val now = OffsetDateTime.now(SEOUL)
             val filename = UriUtils.encode("만족도조사응답_${now.format(TIMESTAMP)}.xlsx", Charsets.UTF_8)
             ExcelFile.attachment(filename, renderPublicSurveyAnswers(expoId, first, answers, now))
-        } catch (e: ExpectedException) {
-            throw e
-        } catch (e: Exception) {
-            // 메시지는 공급자 이름과 상태 또는 아래 검사 문구만 담는다(원인·URL·본문 없음)
-            log.error("공개 설문 응답 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message)
-            throw ExpectedException(HttpStatus.BAD_GATEWAY, "설문 응답 원천 조회 또는 파일 생성에 실패했습니다.")
         }
 
     private fun readAll(expoId: String): Pair<PublicSurveyAnswerPage, List<PublicSurveyAnswer>> {

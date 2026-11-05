@@ -39,18 +39,16 @@ class EntryRecordExcelServiceImpl(
     ): ExcelFile {
         valid((from == null) == (to == null), "from과 to는 함께 지정해야 합니다.")
         valid(from == null || to == null || from <= to, "from은 to보다 늦을 수 없습니다.")
-        return try {
+        return wrapExcelFailure(
+            { "입장 기록 원천 조회 또는 파일 생성에 실패했습니다." },
+            HttpStatus.BAD_GATEWAY,
+            logFailure = { e -> log.error("입장 기록 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message) },
+        ) {
             val (records, walkIn) = readAll(expoId, from, to)
             val subjects = subjects(expoId, records)
             val timestamp = LocalDateTime.now(SEOUL).format(TIMESTAMP)
             val filename = UriUtils.encode("입장기록_$timestamp.xlsx", Charsets.UTF_8)
             ExcelFile.attachment(filename, renderEntryRecords(records, subjects, walkIn))
-        } catch (e: ExpectedException) {
-            throw e
-        } catch (e: Exception) {
-            // 메시지는 공급자 이름과 상태만 담는다(원인·URL·본문 없음)
-            log.error("입장 기록 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message)
-            throw ExpectedException(HttpStatus.BAD_GATEWAY, "입장 기록 원천 조회 또는 파일 생성에 실패했습니다.")
         }
     }
 
@@ -103,13 +101,6 @@ class EntryRecordExcelServiceImpl(
             cards.trainees.associateByTo(trainee) { it.traineeId }
         }
         return EntrySubjects(standard, trainee)
-    }
-
-    private fun valid(
-        condition: Boolean,
-        message: String,
-    ) {
-        if (!condition) throw ExpectedException(HttpStatus.BAD_REQUEST, message)
     }
 
     private companion object {
