@@ -17,11 +17,11 @@ import team.startup.report.domain.excel.service.standardInformation
 import team.startup.report.global.client.application.ApplicationClient
 import team.startup.report.global.client.application.TrainingApplication
 import team.startup.report.global.client.expo.ExpoClient
-import team.startup.report.global.client.user.DetailPage
 import team.startup.report.global.client.user.InformationResDto
 import team.startup.report.global.client.user.StandardParticipantDetail
 import team.startup.report.global.client.user.TraineeDetailItem
 import team.startup.report.global.client.user.UserClient
+import team.startup.report.global.client.user.readAll
 import tools.jackson.databind.JsonNode
 
 /**
@@ -39,7 +39,7 @@ class HttpReportSource(
     override fun standardParticipants(expoId: String): List<StandardParticipant>? {
         expo.expo(expoId) ?: return null
         val unresolved = Unresolved()
-        val all = readAll { user.standardParticipantPage(expoId, it) }
+        val all = readAll(cursorError = { "${UserClient.NAME} 서비스 커서 오류" }) { user.standardParticipantPage(expoId, it) }
         val byId = all.associateBy { it.participantId }
         return all
             .sortedBy { it.participantId }
@@ -58,13 +58,15 @@ class HttpReportSource(
 
     override fun trainees(expoId: String): List<Trainee>? {
         expo.expo(expoId) ?: return null
-        val trainees = readAll { user.traineePage(expoId, it) }.sortedBy { it.traineeId }
+        val trainees = readAll(cursorError = { "${UserClient.NAME} 서비스 커서 오류" }) { user.traineePage(expoId, it) }.sortedBy { it.traineeId }
         val people =
             if (trainees.any {
                     it.participantId != null
                 }
             ) {
-                readAll { user.standardParticipantPage(expoId, it) }.associateBy { it.participantId }
+                readAll(
+                    cursorError = { "${UserClient.NAME} 서비스 커서 오류" },
+                ) { user.standardParticipantPage(expoId, it) }.associateBy { it.participantId }
             } else {
                 emptyMap()
             }
@@ -147,20 +149,6 @@ class HttpReportSource(
                 .associate { it.id to TrainingProgram(it.id, it.title, it.category, it.startedAt, it.endedAt) }
         check(programs.keys.containsAll(ids)) { "${ExpoClient.NAME} 서비스 응답 누락" }
         return programs
-    }
-
-    /** 커서를 끝(nextCursor = null)까지 따라간다. 커서가 앞으로 가지 않으면 무한 반복 대신 실패한다. */
-    private fun <T> readAll(page: (Long?) -> DetailPage<T>): List<T> {
-        val items = mutableListOf<T>()
-        var cursor: Long? = null
-        do {
-            val current = page(cursor)
-            items += current.items
-            val next = current.nextCursor
-            check(next == null || (current.items.isNotEmpty() && (cursor == null || next > cursor))) { "${UserClient.NAME} 서비스 커서 오류" }
-            cursor = next
-        } while (cursor != null)
-        return items
     }
 
     private fun InformationResDto.toAnswers() = informationAnswers(answers, questions)

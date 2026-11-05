@@ -31,8 +31,8 @@ import team.startup.report.global.client.application.ApplicationRow
 import team.startup.report.global.client.application.ApplicationStatus
 import team.startup.report.global.client.application.ApplicationTarget
 import team.startup.report.global.client.expo.ExpoClient
-import team.startup.report.global.client.user.DetailPage
 import team.startup.report.global.client.user.UserClient
+import team.startup.report.global.client.user.readAll
 import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import team.startup.report.global.exception.ExpectedException
 import java.time.Instant
@@ -452,19 +452,6 @@ class ExcelDownloadServiceImpl(
                 LedgerMeta(timestamp, expoId, request.scope.name, request.filter, request.applicationIds?.size),
             ),
         )
-    }
-
-    internal fun <T> readAll(fetch: (Long?) -> DetailPage<T>): List<T> {
-        val items = mutableListOf<T>()
-        var cursor: Long? = null
-        do {
-            val page = fetch(cursor)
-            items += page.items
-            val next = page.nextCursor
-            check(next == null || (page.items.isNotEmpty() && (cursor == null || next > cursor)))
-            cursor = next
-        } while (cursor != null)
-        return items
     }
 
     private fun valid(

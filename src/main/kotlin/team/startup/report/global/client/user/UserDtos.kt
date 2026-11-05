@@ -94,3 +94,19 @@ data class TraineeEntryCard(
     val name: String?,
     val school: String? = null,
 )
+
+internal fun <T> readAll(
+    cursorError: () -> String = { "Check failed." },
+    fetch: (Long?) -> DetailPage<T>,
+): List<T> {
+    val items = mutableListOf<T>()
+    var cursor: Long? = null
+    do {
+        val page = fetch(cursor)
+        items += page.items
+        val next = page.nextCursor
+        check(next == null || (page.items.isNotEmpty() && (cursor == null || next > cursor)), cursorError)
+        cursor = next
+    } while (cursor != null)
+    return items
+}
