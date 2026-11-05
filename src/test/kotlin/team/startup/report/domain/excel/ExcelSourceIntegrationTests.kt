@@ -47,17 +47,18 @@ import team.startup.report.support.values
 import java.io.ByteArrayInputStream
 import java.time.Duration
 
+private const val SOURCE_EXPO_ID = "11111111-1111-1111-1111-111111111111"
 private const val USER_TOKEN = "it-user-internal-token"
 private const val APPLICATION_TOKEN = "it-application-internal-token"
 private const val EXPO_TOKEN = "it-expo-internal-token"
 private val TOKENS = listOf(USER_TOKEN, APPLICATION_TOKEN, EXPO_TOKEN)
 
-private const val EXPO = "GET /internal/expo/e1"
-private const val STANDARD_PAGE = "GET /internal/expos/e1/standard-participants/details?size=500"
-private const val TRAINEE_PAGE = "GET /internal/expos/e1/trainees/details?size=500"
+private const val EXPO = "GET /internal/expo/$SOURCE_EXPO_ID"
+private const val STANDARD_PAGE = "GET /internal/expos/$SOURCE_EXPO_ID/standard-participants/details?size=500"
+private const val TRAINEE_PAGE = "GET /internal/expos/$SOURCE_EXPO_ID/trainees/details?size=500"
 private const val TRAINING_APPLICATIONS = "POST /internal/training-program-applications/trainees"
-private const val TRAINING_BATCH = "POST /internal/expo/e1/training-programs/batch"
-private const val STANDARD_PROGRAM = "GET /internal/expo/e1/standard-programs/7"
+private const val TRAINING_BATCH = "POST /internal/expo/$SOURCE_EXPO_ID/training-programs/batch"
+private const val STANDARD_PROGRAM = "GET /internal/expo/$SOURCE_EXPO_ID/standard-programs/7"
 private const val STANDARD_APPLICATIONS = "GET /internal/standard-program-applications/program/7"
 private const val BRIEFS = "POST /internal/standard-participants/details"
 private const val TRAINEE_DETAIL = "GET /internal/trainees/3/details"
@@ -88,10 +89,10 @@ class ExcelSourceIntegrationTests {
             synchronized(it.requests) { it.requests.clear() }
         }
         expo.on(
-            "GET /internal/expo/e1/admin-access",
+            "GET /internal/expo/$SOURCE_EXPO_ID/admin-access",
             body =
                 mapOf(
-                    "expoId" to "e1",
+                    "expoId" to SOURCE_EXPO_ID,
                     "adminId" to 1,
                     "permission" to "APPLICATION_READ",
                     "policyVersion" to "GLOBAL_ADMIN_APPLICATION_READ_V1",
@@ -109,7 +110,7 @@ class ExcelSourceIntegrationTests {
         )
         user.on("$STANDARD_PAGE&cursor=5", body = page(listOf(standard(7, true, "PRE", plain("학교명" to "다초"), null)), null))
 
-        val result = admin("/excel/standard/e1")
+        val result = admin("/excel/standard/$SOURCE_EXPO_ID")
 
         result.response.status shouldBe 200
         result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename*=UTF-8''Participant_Information.xlsx"
@@ -124,24 +125,24 @@ class ExcelSourceIntegrationTests {
         sheet.cell(0, 7).assertDarkHeader()
         user.requests.map { it.uri } shouldContainExactly
             listOf(
-                "/internal/expos/e1/standard-participants/details?size=500",
-                "/internal/expos/e1/standard-participants/details?size=500&cursor=5",
+                "/internal/expos/$SOURCE_EXPO_ID/standard-participants/details?size=500",
+                "/internal/expos/$SOURCE_EXPO_ID/standard-participants/details?size=500&cursor=5",
             )
         assertProviderTokens()
         // 스냅샷 없는 설문 답변은 열을 만들지 않고 건수만 남긴다(개인정보 없음)
-        output.out shouldContain "엑셀 답변 복원 불가: excel=standard, expoId=e1, count=1"
+        output.out shouldContain "엑셀 답변 복원 불가: excel=standard, expoId=$SOURCE_EXPO_ID, count=1"
         output.out shouldNotContain "010-0000-0005"
     }
 
     @Test
     fun `일반 참가자 - 행사 없음과 빈 행사는 404`() {
         expo.on(EXPO, 404, """{"status":404,"message":"박람회를 찾을 수 없습니다."}""")
-        admin("/excel/standard/e1").assertError(404, "박람회를 찾을 수 없습니다.")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(404, "박람회를 찾을 수 없습니다.")
         user.requests shouldBe emptyList()
 
         expo.on(EXPO, body = expoBody())
         user.on(STANDARD_PAGE, body = page(emptyList(), null))
-        admin("/excel/standard/e1").assertError(404, "참가자 정보가 존재하지 않습니다.")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(404, "참가자 정보가 존재하지 않습니다.")
     }
 
     @Test
@@ -149,7 +150,7 @@ class ExcelSourceIntegrationTests {
         expo.on(EXPO, body = expoBody())
         user.on(STANDARD_PAGE, body = page(party(), null))
 
-        val result = admin("/excel/standard/e1")
+        val result = admin("/excel/standard/$SOURCE_EXPO_ID")
 
         result.response.status shouldBe 200
         result.sheet("박람회 참가자 정보").values() shouldBe PARTY_ROWS
@@ -160,13 +161,13 @@ class ExcelSourceIntegrationTests {
     fun `일반 참가자 - 지역 학교 키가 없는 구버전 응답과 대표자 누락은 빈칸 파일 대신 실패한다`() {
         expo.on(EXPO, body = expoBody())
         user.on(STANDARD_PAGE, body = page(party().map { it - "region" }, null))
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
 
         user.on(STANDARD_PAGE, body = page(party().map { it - "school" }, null))
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
 
         user.on(STANDARD_PAGE, body = page(party().drop(1), null))
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 대표자 누락")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 대표자 누락")
     }
 
     @Test
@@ -215,7 +216,7 @@ class ExcelSourceIntegrationTests {
                 ),
         )
 
-        val result = admin("/excel/e1")
+        val result = admin("/excel/$SOURCE_EXPO_ID")
 
         result.response.status shouldBe 200
         result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION)!! shouldMatch
@@ -245,7 +246,7 @@ class ExcelSourceIntegrationTests {
         )
         expo.on(TRAINING_BATCH, body = listOf(trainingProgram(102, "선택", "CHOICE"), trainingProgram(101, "공통", "ESSENTIAL")))
 
-        val result = admin("/excel/e1")
+        val result = admin("/excel/$SOURCE_EXPO_ID")
 
         result.response.status shouldBe 200
         XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
@@ -279,7 +280,7 @@ class ExcelSourceIntegrationTests {
         val detail =
             mapOf(
                 "traineeId" to 3,
-                "expoId" to "e1",
+                "expoId" to SOURCE_EXPO_ID,
                 "name" to "연수자3",
                 "trainingId" to null,
                 "information" to plain("소속" to "광주초"),
@@ -309,11 +310,11 @@ class ExcelSourceIntegrationTests {
     @Test
     fun `연수자 - 행사 없음과 연수자 없음은 404`() {
         expo.on(EXPO, 404, """{"status":404}""")
-        admin("/excel/e1").assertError(404, "박람회를 찾을 수 없습니다.")
+        admin("/excel/$SOURCE_EXPO_ID").assertError(404, "박람회를 찾을 수 없습니다.")
 
         expo.on(EXPO, body = expoBody())
         user.on(TRAINEE_PAGE, body = page(emptyList(), null))
-        admin("/excel/e1").assertError(404, "연수자가 존재하지 않습니다.")
+        admin("/excel/$SOURCE_EXPO_ID").assertError(404, "연수자가 존재하지 않습니다.")
         application.requests shouldBe emptyList()
     }
 
@@ -326,7 +327,7 @@ class ExcelSourceIntegrationTests {
         )
         user.on(BRIEFS, body = listOf(brief(5, true), brief(4, false), brief(9, true)))
 
-        val result = admin("/excel/program/e1?programId=7")
+        val result = admin("/excel/program/$SOURCE_EXPO_ID?programId=7")
 
         result.response.status shouldBe 200
         result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Program_Participant_Information.xlsx\""
@@ -341,14 +342,14 @@ class ExcelSourceIntegrationTests {
 
         application.on(STANDARD_APPLICATIONS, body = emptyList<Any>())
         user.requests.clear()
-        val empty = admin("/excel/program/e1?programId=7")
+        val empty = admin("/excel/program/$SOURCE_EXPO_ID?programId=7")
         empty.response.status shouldBe 200
         empty.sheet("프로그램 참가자 정보").values() shouldBe listOf(listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "서명", "비고"))
         user.requests shouldBe emptyList()
 
         expo.on(STANDARD_PROGRAM, 404, """{"status":404}""")
         application.requests.clear()
-        admin("/excel/program/e1?programId=7").assertError(404, "프로그램을 찾을 수 없습니다.")
+        admin("/excel/program/$SOURCE_EXPO_ID?programId=7").assertError(404, "프로그램을 찾을 수 없습니다.")
         application.requests shouldBe emptyList()
     }
 
@@ -359,7 +360,7 @@ class ExcelSourceIntegrationTests {
             body =
                 mapOf(
                     "traineeId" to 3,
-                    "expoId" to "e1",
+                    "expoId" to SOURCE_EXPO_ID,
                     "name" to "홍길동",
                     "trainingId" to "TR-1",
                     "information" to
@@ -414,7 +415,7 @@ class ExcelSourceIntegrationTests {
             body =
                 mapOf(
                     "traineeId" to 3,
-                    "expoId" to "e1",
+                    "expoId" to SOURCE_EXPO_ID,
                     "name" to "홍길동",
                     "trainingId" to "TR-1",
                     "information" to plain(),
@@ -431,22 +432,22 @@ class ExcelSourceIntegrationTests {
         expo.on(EXPO, body = expoBody())
         listOf(401, 403, 500, 503).forEach { status ->
             user.on(STANDARD_PAGE, status, """{"status":$status,"message":"secret-body"}""")
-            admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP $status)")
+            admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP $status)")
         }
         user.routes[STANDARD_PAGE] = { StubProvider.Reply(200, page(emptyList(), null).toJson(), Duration.ofMillis(1_500)) }
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 연결 실패")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 연결 실패")
         user.on(STANDARD_PAGE, body = """{"items":[{"participantId":"secret-body"}]""")
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 형식 오류")
 
         // 연수 프로그램 일괄 조회 404(섞인 ID)는 대상 없음이 아니라 실패
         user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "PRE", plain())), null))
         application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 1, 101)))
         expo.on(TRAINING_BATCH, 404, """{"status":404,"message":"secret-body"}""")
-        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
+        admin("/excel/$SOURCE_EXPO_ID").assertError(500, "예상치 못한 오류 발생")
 
         expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
         application.on(STANDARD_APPLICATIONS, 503, "secret-body")
-        admin("/excel/program/e1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
+        admin("/excel/program/$SOURCE_EXPO_ID?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
 
         user.on(TRAINEE_DETAIL, 500, "secret-body")
         admin("/excel/trainee/3").assertError(502, "연수자의 행사 정보를 확인할 수 없습니다.")
@@ -468,7 +469,7 @@ class ExcelSourceIntegrationTests {
             STANDARD_PAGE,
             body = page(listOf(standard(1, true, "PRE", version("이전 보기"), null), standard(2, true, "PRE", version("변경 보기"), null)), null),
         )
-        val sheet = admin("/excel/standard/e1").sheet("박람회 참가자 정보")
+        val sheet = admin("/excel/standard/$SOURCE_EXPO_ID").sheet("박람회 참가자 정보")
         sheet.cell(1, 4).stringCellValue shouldBe "이전 보기"
         sheet.cell(2, 4).stringCellValue shouldBe "변경 보기"
         sheet.getRow(0).lastCellNum.toInt() shouldBe 5
@@ -501,15 +502,15 @@ class ExcelSourceIntegrationTests {
             body =
                 mapOf(
                     "traineeId" to 3,
-                    "expoId" to "e1",
+                    "expoId" to SOURCE_EXPO_ID,
                     "name" to payloads[0],
                     "trainingId" to payloads[1],
                     "information" to plain("소속" to payloads[2]),
                 ),
         )
-        val standardSheet = admin("/excel/standard/e1").sheet("박람회 참가자 정보")
-        val traineeSheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
-        val programSheet = admin("/excel/program/e1?programId=7").sheet("프로그램 참가자 정보")
+        val standardSheet = admin("/excel/standard/$SOURCE_EXPO_ID").sheet("박람회 참가자 정보")
+        val traineeSheet = admin("/excel/$SOURCE_EXPO_ID").sheet("사전 교원연수자 정보")
+        val programSheet = admin("/excel/program/$SOURCE_EXPO_ID?programId=7").sheet("프로그램 참가자 정보")
         payloads.forEachIndexed { index, text ->
             listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 5), programSheet.cell(index + 1, 1)).forEach {
                 it.cellType shouldBe CellType.STRING
@@ -546,7 +547,7 @@ class ExcelSourceIntegrationTests {
                     .map { it.asLong() }
             StubProvider.Reply(200, ids.map { trainingProgram(it, "강연$it", "ESSENTIAL") }.toJson())
         }
-        val sheet = admin("/excel/e1").sheet("사전 교원연수자 정보")
+        val sheet = admin("/excel/$SOURCE_EXPO_ID").sheet("사전 교원연수자 정보")
         sheet.lastRowNum shouldBe 1001
         (1..1001).forEach { id ->
             sheet.cell(id, 0).stringCellValue shouldBe "연수자$id"
@@ -562,15 +563,15 @@ class ExcelSourceIntegrationTests {
         expo.on(EXPO, body = expoBody())
         user.on(STANDARD_PAGE, body = page(listOf(standard2()), 2))
         user.on("$STANDARD_PAGE&cursor=2", 503, "secret-body")
-        admin("/excel/standard/e1").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP 503)")
+        admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP 503)")
         expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
         application.on(STANDARD_APPLICATIONS, body = listOf(standardApplication(1, 1), standardApplication(2, 2)))
         user.on(BRIEFS, body = listOf(brief(1, true)))
-        admin("/excel/program/e1?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
+        admin("/excel/program/$SOURCE_EXPO_ID?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
         user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "PRE", plain())), null))
         application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 1, 1)))
         expo.on(TRAINING_BATCH, body = emptyList<Any>())
-        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
+        admin("/excel/$SOURCE_EXPO_ID").assertError(500, "예상치 못한 오류 발생")
     }
 
     @Test
@@ -578,7 +579,7 @@ class ExcelSourceIntegrationTests {
         expo.on(EXPO, body = expoBody())
         user.on(
             TRAINEE_DETAIL,
-            body = mapOf("traineeId" to 4, "expoId" to "e1", "name" to "다른 사람", "trainingId" to "T4", "information" to plain()),
+            body = mapOf("traineeId" to 4, "expoId" to SOURCE_EXPO_ID, "name" to "다른 사람", "trainingId" to "T4", "information" to plain()),
         )
         application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 4, 1)))
         expo.on(TRAINING_BATCH, body = listOf(trainingProgram(1, "다른 사람 강연", "ESSENTIAL")))
@@ -587,7 +588,7 @@ class ExcelSourceIntegrationTests {
 
         user.on(
             TRAINEE_DETAIL,
-            body = mapOf("traineeId" to 3, "expoId" to "e1", "name" to "본인", "trainingId" to "T3", "information" to plain()),
+            body = mapOf("traineeId" to 3, "expoId" to SOURCE_EXPO_ID, "name" to "본인", "trainingId" to "T3", "information" to plain()),
         )
         admin("/excel/trainee/3").assertError(500, "출석부 엑셀 생성 중 오류 발생")
         expo.requests.none { it.method == "POST" } shouldBe true
@@ -630,7 +631,7 @@ class ExcelSourceIntegrationTests {
                 ),
         )
 
-        val result = admin("/excel/e1")
+        val result = admin("/excel/$SOURCE_EXPO_ID")
 
         result.response.status shouldBe 200
         XSSFWorkbook(ByteArrayInputStream(result.response.contentAsByteArray)).use { workbook ->
@@ -645,12 +646,12 @@ class ExcelSourceIntegrationTests {
                 )
         }
         user.on(TRAINEE_PAGE, body = page(listOf(companion), null))
-        val schoolOnly = admin("/excel/e1")
+        val schoolOnly = admin("/excel/$SOURCE_EXPO_ID")
         XSSFWorkbook(ByteArrayInputStream(schoolOnly.response.contentAsByteArray)).use { workbook ->
             workbook.getSheetAt(0).values()[0] shouldBe listOf("이름", "연수원아이디", "전화번호", "알림 연락처", "신청방식", "공통 강연", "선택 강연")
         }
         user.on(TRAINEE_PAGE, body = page(listOf(otherExpo), null))
-        admin("/excel/e1").assertError(500, "예상치 못한 오류 발생")
+        admin("/excel/$SOURCE_EXPO_ID").assertError(500, "예상치 못한 오류 발생")
         assertProviderTokens()
     }
 
@@ -663,7 +664,7 @@ class ExcelSourceIntegrationTests {
         val detail =
             mapOf(
                 "traineeId" to 3,
-                "expoId" to "e1",
+                "expoId" to SOURCE_EXPO_ID,
                 "name" to "본인이름",
                 "trainingId" to null,
                 "information" to plain(),

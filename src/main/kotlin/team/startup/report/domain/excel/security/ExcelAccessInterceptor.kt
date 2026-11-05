@@ -1,4 +1,4 @@
-package team.startup.report.global.security
+package team.startup.report.domain.excel.security
 
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -9,21 +9,16 @@ import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
-import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.HandlerInterceptor
 import org.springframework.web.servlet.HandlerMapping
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
-import team.startup.report.domain.excel.presentation.controller.EntryRecordExcelController
-import team.startup.report.domain.excel.presentation.controller.ExcelController
-import team.startup.report.domain.excel.presentation.controller.ExcelDownloadController
-import team.startup.report.domain.excel.presentation.controller.ProgramAttendanceExcelController
-import team.startup.report.domain.excel.presentation.controller.PublicSurveyExcelController
 import team.startup.report.global.client.RequestDeadline
 import team.startup.report.global.client.expo.ExpoClient
 import team.startup.report.global.client.user.TraineeDetail
 import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.exception.ExpectedException
+import java.util.UUID
 import java.util.concurrent.Semaphore
 
 // 클라이언트는 생성자 대신 addInterceptors에서 꺼낸다. Feign 클라이언트를 만들 때 자식 컨텍스트의 refresh 이벤트가
@@ -49,18 +44,7 @@ class ExcelAccessInterceptor(
         response: HttpServletResponse,
         handler: Any,
     ): Boolean {
-        if (handler !is HandlerMethod ||
-            (
-                !ExcelController::class.java.isAssignableFrom(handler.beanType) &&
-                    !ExcelDownloadController::class.java.isAssignableFrom(handler.beanType) &&
-                    !EntryRecordExcelController::class.java.isAssignableFrom(handler.beanType) &&
-                    !ProgramAttendanceExcelController::class.java.isAssignableFrom(handler.beanType) &&
-                    !PublicSurveyExcelController::class.java.isAssignableFrom(handler.beanType)
-            )
-        ) {
-            return true
-        }
-        // 권한 확인 호출보다 먼저 정한다. 5개 엑셀 컨트롤러가 모두 이 인터셉터를 지난다
+        // 권한 확인 호출보다 먼저 정한다. /excel 하위 요청은 모두 이 인터셉터를 지난다
         RequestDeadline.start(request)
         val auth =
             SecurityContextHolder.getContext().authentication as? JwtAuthenticationToken
@@ -70,11 +54,21 @@ class ExcelAccessInterceptor(
                 ?.toLongOrNull()
                 ?.takeIf { it > 0 }
                 ?: throw ExpectedException(HttpStatus.UNAUTHORIZED, "인증이 필요합니다.")
-        val variables = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE) as? Map<*, *> ?: error("경로 변수 없음")
+        val variables = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE) as? Map<*, *> ?: emptyMap<Any, Any>()
         var trainee: TraineeDetail? = null
         val expoId =
-            (variables["expo_id"] ?: variables["expoId"]) as? String ?: run {
-                val id = (variables["trainee_id"] as? String)?.toLongOrNull() ?: return true
+            ((variables["expo_id"] ?: variables["expoId"]) as? String)?.also { id ->
+                val valid =
+                    try {
+                        UUID.fromString(id).toString().equals(id, ignoreCase = true)
+                    } catch (_: IllegalArgumentException) {
+                        false
+                    }
+                if (!valid) throw ExpectedException(HttpStatus.BAD_REQUEST, "잘못된 요청입니다.")
+            } ?: run {
+                val id =
+                    (variables["trainee_id"] as? String)?.toLongOrNull()?.takeIf { it > 0 }
+                        ?: throw ExpectedException(HttpStatus.BAD_REQUEST, "잘못된 요청입니다.")
                 trainee = try {
                     user.trainee(id)?.also { check(it.traineeId == id && it.expoId.isNotBlank()) }
                 } catch (_: Exception) {
