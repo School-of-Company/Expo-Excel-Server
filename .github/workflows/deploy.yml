@@ -28,19 +28,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
-      # 테스트용 DB 는 기존 CI 와 같이 compose 로 띄운다.
-      - name: Start test services
-        run: |
-          cp .env.example .env
-          docker compose up -d --wait
+      - name: Prepare local settings
+        run: cp .env.example .env
 
       # build = 테스트·린트(ktlint/spotless) + bootJar. 테스트가 실패하면 업로드 전에 멈춘다.
       - name: Build and test
         run: ./gradlew build --no-daemon
-
-      - name: Stop test services
-        if: always()
-        run: docker compose down
 
       - name: Package
         run: |

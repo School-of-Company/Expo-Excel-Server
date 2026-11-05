@@ -6,14 +6,6 @@ spring:
     banner-mode: "off"
   config:
     import: optional:file:.env[.properties]
-  datasource:
-    url: jdbc:postgresql://localhost:${POSTGRES_PORT:35432}/${POSTGRES_DB:expo_report}
-    username: ${POSTGRES_USER:expo}
-    password: ${POSTGRES_PASSWORD}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
   security:
     user:
       name: ${LOCAL_SECURITY_USER:developer}
@@ -23,10 +15,6 @@ server:
   address: 127.0.0.1
   port: ${SERVER_PORT:8083}
 
-eureka:
-  client:
-    enabled: false
-
 # 요청 1건당 접근 로그 1줄(module=HttpAccess). 끄려면 LOGGING_HTTP_ACCESS_ENABLED=false
 logging:
   http-access:
@@ -34,7 +22,6 @@ logging:
 
 swagger:
   enabled: ${SWAGGER_ENABLED:false}
-  include-internal: ${SWAGGER_INCLUDE_INTERNAL:false}
 
 springdoc:
   api-docs:
