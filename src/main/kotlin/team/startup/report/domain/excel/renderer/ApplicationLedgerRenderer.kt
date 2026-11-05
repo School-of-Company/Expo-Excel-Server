@@ -12,15 +12,15 @@ import team.startup.report.global.client.application.ApplicationStatus
 import team.startup.report.global.client.user.StandardParticipantDetail
 import team.startup.report.global.client.user.TraineeDetailItem
 import team.startup.report.global.common.time.PROGRAM_SCHEDULE
+import team.startup.report.global.common.time.SEOUL
 import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // 프로그램·연수 신청 원장(Report #80). 신청 1건 = 1행이고 사람 중복 제거·확정 필터를 하지 않는다.
 // 원천에 없는 값(대기 순번, 기록 이전 이력)은 만들지 않고 빈칸과 비고·메타 건수로 구분한다.
 
-private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
+private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(SEOUL)
 
 // 회차 정의 스냅샷의 운영 일시를 "yyyy-MM-dd HH:mm"(KST)로 쓴다. "2026-10-30T23:00:00Z"는 "2026-10-31 08:00"이 된다.
 // 날짜만 있거나("2026-10-31") 형식이 깨진 값처럼 일시로 해석되지 않으면, 이 변경 전과 같이 T만 공백으로 바꾼 원문을 쓴다

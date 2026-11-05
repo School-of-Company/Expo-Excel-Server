@@ -5,17 +5,16 @@ import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.global.client.form.PublicSurveyAnswer
 import team.startup.report.global.client.form.PublicSurveyAnswerPage
 import team.startup.report.global.client.form.PublicSurveyQuestion
+import team.startup.report.global.common.time.SEOUL
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.ObjectNode
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // 익명 공개 설문 응답(Form #215)을 응답 1건 = 1행으로 쓴다. 참가자 명단과 합치지 않고 전화번호·경품 정보는 원천에도 없다.
 // 셀 표기: 키 없음 = 빈 칸(미응답), 저장값 null = "(null)", CHECKBOX = "true"/"false", 선택형 = 보기 문구(MULTIPLE은 ", "로 잇는다).
 // 정의에 없는 보기 키·형식이 다른 값은 추정하지 않고 "[미복원] 저장값"으로, 정의에 없는 문항 ID의 답변은 "미복원 답변" 열에 JSON으로 둔다.
 
-private val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
 private val KST_OUTPUT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 private const val CELL_MAX_LEN = 32767
 private val CONTROL = Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]")

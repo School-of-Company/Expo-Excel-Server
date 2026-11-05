@@ -6,4 +6,11 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook
 class ExcelFile(
     val contentDisposition: String,
     val workbook: SXSSFWorkbook,
-)
+) {
+    companion object {
+        fun attachment(
+            filename: String,
+            workbook: SXSSFWorkbook,
+        ): ExcelFile = ExcelFile("attachment; filename*=UTF-8''$filename", workbook)
+    }
+}

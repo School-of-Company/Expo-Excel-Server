@@ -10,10 +10,10 @@ import team.startup.report.domain.excel.service.PublicSurveyExcelService
 import team.startup.report.global.client.form.FormClient
 import team.startup.report.global.client.form.PublicSurveyAnswer
 import team.startup.report.global.client.form.PublicSurveyAnswerPage
+import team.startup.report.global.common.time.SEOUL
+import team.startup.report.global.common.time.TIMESTAMP
 import team.startup.report.global.exception.ExpectedException
 import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
  * GET /excel/public-surveys/{expo_id}. Form 공개 설문 응답을 마지막 커서까지 읽어 응답 1건 = 1행으로 쓴다.
@@ -31,7 +31,7 @@ class PublicSurveyExcelServiceImpl(
             val (first, answers) = readAll(expoId)
             val now = OffsetDateTime.now(SEOUL)
             val filename = UriUtils.encode("만족도조사응답_${now.format(TIMESTAMP)}.xlsx", Charsets.UTF_8)
-            ExcelFile("attachment; filename*=UTF-8''$filename", renderPublicSurveyAnswers(expoId, first, answers, now))
+            ExcelFile.attachment(filename, renderPublicSurveyAnswers(expoId, first, answers, now))
         } catch (e: ExpectedException) {
             throw e
         } catch (e: Exception) {
@@ -78,7 +78,5 @@ class PublicSurveyExcelServiceImpl(
 
         // 페이지 1000건 × 100번 호출. 공개 설문 실측 응답은 수십 건이라 여유가 크다(실측 후 조정)
         const val MAX_ANSWERS = 100_000L
-        val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
-        val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }
 }

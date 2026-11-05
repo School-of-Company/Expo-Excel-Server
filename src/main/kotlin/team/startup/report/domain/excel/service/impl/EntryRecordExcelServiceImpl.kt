@@ -14,11 +14,11 @@ import team.startup.report.global.client.attendance.WalkInCount
 import team.startup.report.global.client.user.StandardParticipantEntryCard
 import team.startup.report.global.client.user.TraineeEntryCard
 import team.startup.report.global.client.user.UserClient
+import team.startup.report.global.common.time.SEOUL
+import team.startup.report.global.common.time.TIMESTAMP
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
  * GET /excel/entry-records/{expo_id}. 참여 서비스 입장 기록을 끝 페이지까지 읽고 일반 참가자·연수자 이름·직업을 유저 서비스에서
@@ -44,7 +44,7 @@ class EntryRecordExcelServiceImpl(
             val subjects = subjects(expoId, records)
             val timestamp = LocalDateTime.now(SEOUL).format(TIMESTAMP)
             val filename = UriUtils.encode("입장기록_$timestamp.xlsx", Charsets.UTF_8)
-            ExcelFile("attachment; filename*=UTF-8''$filename", renderEntryRecords(records, subjects, walkIn))
+            ExcelFile.attachment(filename, renderEntryRecords(records, subjects, walkIn))
         } catch (e: ExpectedException) {
             throw e
         } catch (e: Exception) {
@@ -115,8 +115,5 @@ class EntryRecordExcelServiceImpl(
     private companion object {
         // 힙·Gateway 대기를 확인할 수 없어 보수적으로 둔 값이다(#65, 실측 후 조정). 엑셀 한 시트 행 한도(1,048,576) 안이다
         const val MAX_RECORDS = 300_000L
-
-        val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
-        val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }
 }

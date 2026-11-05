@@ -22,11 +22,12 @@ import team.startup.report.global.client.application.PreregistrationStatus
 import team.startup.report.global.client.application.PreregistrationTarget
 import team.startup.report.global.client.application.RegistrationFilter
 import team.startup.report.global.client.user.StandardParticipantDetail
+import team.startup.report.global.common.time.SEOUL
+import team.startup.report.global.common.time.TIMESTAMP
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
@@ -37,8 +38,8 @@ import java.util.UUID
 //   사전등록을 모두 취소하고 현장 등록한 사람은 취소 행과 회차 미지정 행이 함께 나온다.
 //   확정 회차가 "없다"는 것은 조건 없는 전체 스냅샷에서만 알 수 있으므로, 회차·상태·검색 조건이 없는 필터 전체에만 넣는다.
 
-private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
-private val FILENAME_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").withZone(ZoneId.of("Asia/Seoul"))
+private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(SEOUL)
+private val FILENAME_TIME: DateTimeFormatter = TIMESTAMP.withZone(SEOUL)
 private val STATUS_LABELS =
     mapOf(
         PreregistrationStatus.CONFIRMED to "확정",
@@ -183,8 +184,8 @@ class RegistrationLedger(
 
         val now = Instant.now()
         val filename = UriUtils.encode("등록원장_${FILENAME_TIME.format(now)}.xlsx", Charsets.UTF_8)
-        return ExcelFile(
-            "attachment; filename*=UTF-8''$filename",
+        return ExcelFile.attachment(
+            filename,
             renderRegistrationLedger(rows, people, unassigned, now, expoId, request, includeField, visits, source.events),
         )
     }

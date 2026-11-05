@@ -33,17 +33,18 @@ import team.startup.report.global.client.application.ApplicationTarget
 import team.startup.report.global.client.expo.ExpoClient
 import team.startup.report.global.client.user.UserClient
 import team.startup.report.global.client.user.readAll
+import team.startup.report.global.common.time.SEOUL
+import team.startup.report.global.common.time.TIMESTAMP
 import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import team.startup.report.global.exception.ExpectedException
 import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 // 신청 경로(Application admission_route)와 신청 시각(KST) 표기
 private val ADMISSION_ROUTE_LABELS = mapOf("PRE_REGISTRATION" to "사전", "ONSITE" to "현장")
-private val APPLIED_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
-private val LEDGER_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").withZone(ZoneId.of("Asia/Seoul"))
+private val APPLIED_AT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(SEOUL)
+private val LEDGER_TIMESTAMP = TIMESTAMP.withZone(SEOUL)
 
 @Service
 class ExcelDownloadServiceImpl(
@@ -279,7 +280,7 @@ class ExcelDownloadServiceImpl(
                             it.surveyAnswer?.let { survey -> idKeyedAnswers(survey.answers, survey.questions).values } ?: emptyMap(),
                         )
                     }
-                ExcelFile("attachment; filename*=UTF-8''Participant_Information.xlsx", renderStandardParticipants(result))
+                ExcelFile.attachment("Participant_Information.xlsx", renderStandardParticipants(result))
             }
 
             ExcelTemplate.PROGRAM -> {
@@ -443,8 +444,8 @@ class ExcelDownloadServiceImpl(
         )
         val timestamp = Instant.now()
         val filename = UriUtils.encode("신청원장_${LEDGER_TIMESTAMP.format(timestamp)}.xlsx", Charsets.UTF_8)
-        return ExcelFile(
-            "attachment; filename*=UTF-8''$filename",
+        return ExcelFile.attachment(
+            filename,
             renderApplicationLedger(
                 rows,
                 people.associateBy { it.participantId },

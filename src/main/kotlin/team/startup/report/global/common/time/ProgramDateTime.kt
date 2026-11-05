@@ -3,11 +3,8 @@ package team.startup.report.global.common.time
 import java.time.DateTimeException
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoField
-
-private val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
 
 val PROGRAM_SCHEDULE: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 

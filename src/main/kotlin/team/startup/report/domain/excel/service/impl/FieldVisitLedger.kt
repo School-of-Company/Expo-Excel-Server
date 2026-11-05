@@ -12,13 +12,13 @@ import team.startup.report.global.client.application.FieldVisitEvent
 import team.startup.report.global.client.application.FieldVisitEventType
 import team.startup.report.global.client.application.FieldVisitStatus
 import team.startup.report.global.client.user.StandardParticipantDetail
+import team.startup.report.global.common.time.SEOUL
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 internal val FIELD_HEADERS = listOf("방문일", "FIELD 상태", "세대", "현장 등록 ID", "취소 참가자 ID", "취소 전달 대기", "등록 전달 대기")
-private val FIELD_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
+private val FIELD_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(SEOUL)
 
 internal data class FieldVisitData(
     val items: List<FieldVisit>,
