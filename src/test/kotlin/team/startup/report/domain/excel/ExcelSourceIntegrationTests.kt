@@ -31,7 +31,6 @@ import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import team.startup.report.domain.excel.presentation.controller.ExcelController
 import team.startup.report.domain.excel.service.impl.HttpReportSource
-import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
@@ -58,9 +57,6 @@ private const val STANDARD_PAGE = "GET /internal/expos/$SOURCE_EXPO_ID/standard-
 private const val TRAINEE_PAGE = "GET /internal/expos/$SOURCE_EXPO_ID/trainees/details?size=500"
 private const val TRAINING_APPLICATIONS = "POST /internal/training-program-applications/trainees"
 private const val TRAINING_BATCH = "POST /internal/expo/$SOURCE_EXPO_ID/training-programs/batch"
-private const val STANDARD_PROGRAM = "GET /internal/expo/$SOURCE_EXPO_ID/standard-programs/7"
-private const val STANDARD_APPLICATIONS = "GET /internal/standard-program-applications/program/7"
-private const val BRIEFS = "POST /internal/standard-participants/details"
 private const val TRAINEE_DETAIL = "GET /internal/trainees/3/details"
 
 /**
@@ -72,7 +68,6 @@ private const val TRAINEE_DETAIL = "GET /internal/trainees/3/details"
     ExcelSecurityConfig::class,
     TraineeInfoToExcelServiceImpl::class,
     StandardParticipantInfoToExcelServiceImpl::class,
-    ProgramParticipantInfoToExcelServiceImpl::class,
     TraineeAttendanceToExcelServiceImpl::class,
     HttpReportSource::class,
     ExcelSourceIntegrationTests.StubClients::class,
@@ -319,41 +314,6 @@ class ExcelSourceIntegrationTests {
     }
 
     @Test
-    fun `프로그램 참가자 - 신청 순서, 0명은 머리글만, 소속 아님`() {
-        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스 체험"))
-        application.on(
-            STANDARD_APPLICATIONS,
-            body = listOf(standardApplication(30, 5), standardApplication(10, 9), standardApplication(20, 4)),
-        )
-        user.on(BRIEFS, body = listOf(brief(5, true), brief(4, false), brief(9, true)))
-
-        val result = admin("/excel/program/$SOURCE_EXPO_ID?programId=7")
-
-        result.response.status shouldBe 200
-        result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Program_Participant_Information.xlsx\""
-        result.sheet("프로그램 참가자 정보").values() shouldBe
-            listOf(
-                listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "서명", "비고"),
-                listOf("1.0", "참가자9", "010-9", "동의", "", ""),
-                listOf("2.0", "참가자4", "010-4", "미동의", "", ""),
-                listOf("3.0", "참가자5", "010-5", "동의", "", ""),
-            )
-        assertProviderTokens()
-
-        application.on(STANDARD_APPLICATIONS, body = emptyList<Any>())
-        user.requests.clear()
-        val empty = admin("/excel/program/$SOURCE_EXPO_ID?programId=7")
-        empty.response.status shouldBe 200
-        empty.sheet("프로그램 참가자 정보").values() shouldBe listOf(listOf("순위", "이름", "전화번호", "개인정보 동의 여부", "서명", "비고"))
-        user.requests shouldBe emptyList()
-
-        expo.on(STANDARD_PROGRAM, 404, """{"status":404}""")
-        application.requests.clear()
-        admin("/excel/program/$SOURCE_EXPO_ID?programId=7").assertError(404, "프로그램을 찾을 수 없습니다.")
-        application.requests shouldBe emptyList()
-    }
-
-    @Test
     fun `출석부 - 신청 프로그램 시작일로 날짜 블록, 신청 순서 강연, 스냅샷 폼 값`() {
         user.on(
             TRAINEE_DETAIL,
@@ -445,10 +405,6 @@ class ExcelSourceIntegrationTests {
         expo.on(TRAINING_BATCH, 404, """{"status":404,"message":"secret-body"}""")
         admin("/excel/$SOURCE_EXPO_ID").assertError(500, "예상치 못한 오류 발생")
 
-        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
-        application.on(STANDARD_APPLICATIONS, 503, "secret-body")
-        admin("/excel/program/$SOURCE_EXPO_ID?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
-
         user.on(TRAINEE_DETAIL, 500, "secret-body")
         admin("/excel/trainee/3").assertError(502, "연수자의 행사 정보를 확인할 수 없습니다.")
 
@@ -494,9 +450,6 @@ class ExcelSourceIntegrationTests {
         )
         user.on(TRAINEE_PAGE, body = page(payloads.mapIndexed { index, text -> trainee(index + 1L, "PRE", plain("입력" to text)) }, null))
         application.on(TRAINING_APPLICATIONS, body = emptyList<Any>())
-        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
-        application.on(STANDARD_APPLICATIONS, body = payloads.indices.map { standardApplication(it + 1L, it + 1L) })
-        user.on(BRIEFS, body = payloads.mapIndexed { index, text -> brief(index + 1L, true) + mapOf("name" to text) })
         user.on(
             TRAINEE_DETAIL,
             body =
@@ -510,9 +463,8 @@ class ExcelSourceIntegrationTests {
         )
         val standardSheet = admin("/excel/standard/$SOURCE_EXPO_ID").sheet("박람회 참가자 정보")
         val traineeSheet = admin("/excel/$SOURCE_EXPO_ID").sheet("사전 교원연수자 정보")
-        val programSheet = admin("/excel/program/$SOURCE_EXPO_ID?programId=7").sheet("프로그램 참가자 정보")
         payloads.forEachIndexed { index, text ->
-            listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 5), programSheet.cell(index + 1, 1)).forEach {
+            listOf(standardSheet.cell(index + 1, 4), traineeSheet.cell(index + 1, 5)).forEach {
                 it.cellType shouldBe CellType.STRING
                 it.stringCellValue shouldBe text
             }
@@ -564,10 +516,6 @@ class ExcelSourceIntegrationTests {
         user.on(STANDARD_PAGE, body = page(listOf(standard2()), 2))
         user.on("$STANDARD_PAGE&cursor=2", 503, "secret-body")
         admin("/excel/standard/$SOURCE_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: User 서비스 응답 오류(HTTP 503)")
-        expo.on(STANDARD_PROGRAM, body = mapOf("id" to 7, "title" to "부스"))
-        application.on(STANDARD_APPLICATIONS, body = listOf(standardApplication(1, 1), standardApplication(2, 2)))
-        user.on(BRIEFS, body = listOf(brief(1, true)))
-        admin("/excel/program/$SOURCE_EXPO_ID?programId=7").assertError(500, "엑셀 파일 생성 중 오류 발생")
         user.on(TRAINEE_PAGE, body = page(listOf(trainee(1, "PRE", plain())), null))
         application.on(TRAINING_APPLICATIONS, body = listOf(trainingApplication(1, 1, 1)))
         expo.on(TRAINING_BATCH, body = emptyList<Any>())
@@ -850,16 +798,6 @@ private fun trainingProgram(
     startedAt: String = "2026-05-01 10:00",
     endedAt: String = "2026-05-01 11:00",
 ) = mapOf("id" to id, "title" to title, "startedAt" to startedAt, "endedAt" to endedAt, "category" to category)
-
-private fun standardApplication(
-    applicationId: Long,
-    participantId: Long,
-) = mapOf("applicationId" to applicationId, "participantId" to participantId, "status" to false, "entryTime" to null, "leaveTime" to null)
-
-private fun brief(
-    id: Long,
-    agreed: Boolean,
-) = mapOf("participantId" to id, "name" to "참가자$id", "phoneNumber" to "010-$id", "personalInformationStatus" to agreed)
 
 /** QA 형태의 일행(Report #50): 대표자 일반인과 지역·직업이 서로 다른 동행자 4명. 교사만 학교가 있고 동행자는 번호가 없다. */
 internal fun party(): List<Map<String, Any?>> {

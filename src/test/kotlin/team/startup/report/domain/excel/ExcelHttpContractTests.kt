@@ -29,7 +29,6 @@ import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
 import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
-import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
@@ -51,7 +50,6 @@ private const val XLSX = "application/vnd.openxmlformats-officedocument.spreadsh
     ExcelSecurityConfig::class,
     TraineeInfoToExcelServiceImpl::class,
     StandardParticipantInfoToExcelServiceImpl::class,
-    ProgramParticipantInfoToExcelServiceImpl::class,
     TraineeAttendanceToExcelServiceImpl::class,
     ExcelHttpContractTests.FakeSourceConfig::class,
 )
@@ -101,26 +99,6 @@ class ExcelHttpContractTests {
     }
 
     @Test
-    fun `프로그램 참가자 - 0명도 성공, 소속 아님은 404`() {
-        source.program = emptyList()
-        val result = admin("/excel/program/$CONTRACT_EXPO_ID?programId=7")
-        result.response.status shouldBe 200
-        result.response.getHeader(HttpHeaders.CONTENT_DISPOSITION) shouldBe "attachment; filename=\"Program_Participant_Information.xlsx\""
-        result.sheetName() shouldBe "프로그램 참가자 정보"
-        source.calls shouldBe listOf("program:$CONTRACT_EXPO_ID:7")
-
-        source.program = null
-        admin("/excel/program/$CONTRACT_EXPO_ID?programId=7").assertError(404, "프로그램을 찾을 수 없습니다.")
-    }
-
-    @Test
-    fun `프로그램 참가자 - 파라미터 누락과 숫자 아님은 400`() {
-        admin("/excel/program/$CONTRACT_EXPO_ID").response.status shouldBe 400
-        admin("/excel/program/$CONTRACT_EXPO_ID?programId=abc").assertError(400, "잘못된 요청입니다.")
-        source.calls shouldBe emptyList()
-    }
-
-    @Test
     fun `출석부 성공과 실패`() {
         source.attendance =
             TraineeAttendance(
@@ -149,7 +127,6 @@ class ExcelHttpContractTests {
         source.failure = IllegalStateException("리포트 원천 데이터 연동이 아직 준비되지 않았습니다.")
         admin("/excel/standard/$CONTRACT_EXPO_ID").assertError(500, "엑셀 파일 생성 중 오류 발생: 리포트 원천 데이터 연동이 아직 준비되지 않았습니다.")
         admin("/excel/$CONTRACT_EXPO_ID").assertError(500, "예상치 못한 오류 발생")
-        admin("/excel/program/$CONTRACT_EXPO_ID?programId=1").assertError(500, "엑셀 파일 생성 중 오류 발생")
         admin("/excel/trainee/1").assertError(500, "출석부 엑셀 생성 중 오류 발생")
     }
 

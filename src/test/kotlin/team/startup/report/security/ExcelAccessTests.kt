@@ -336,7 +336,6 @@ class ExcelAccessTests {
         listOf(
             "/excel/$EVENT" to null,
             "/excel/standard/$EVENT" to null,
-            "/excel/program/$EVENT?programId=7" to null,
             "/excel/trainee/10" to null,
             "/excel/expos/$EVENT/downloads" to """{"template":"STANDARD","scope":"FILTER"}""",
         )

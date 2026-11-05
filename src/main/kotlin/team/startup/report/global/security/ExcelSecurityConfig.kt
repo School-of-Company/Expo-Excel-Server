@@ -73,7 +73,6 @@ class ExcelSecurityConfig(
                         HttpMethod.GET,
                         "/excel/{expo_id}",
                         "/excel/standard/{expo_id}",
-                        "/excel/program/{expo_id}",
                         "/excel/trainee/{trainee_id}",
                         "/excel/entry-records/{expo_id}",
                         "/excel/public-surveys/{expo_id}",

@@ -12,10 +12,8 @@ import org.springframework.http.HttpHeaders
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import team.startup.report.domain.excel.service.ExcelFile
-import team.startup.report.domain.excel.service.ProgramParticipantInfoToExcelService
 import team.startup.report.domain.excel.service.StandardParticipantInfoToExcelService
 import team.startup.report.domain.excel.service.TraineeAttendanceToExcelService
 import team.startup.report.domain.excel.service.TraineeInfoToExcelService
@@ -82,7 +80,6 @@ import team.startup.report.global.exception.ErrorResponse
 class ExcelController(
     private val traineeInfoToExcelService: TraineeInfoToExcelService,
     private val standardParticipantInfoToExcelService: StandardParticipantInfoToExcelService,
-    private val programParticipantInfoToExcelService: ProgramParticipantInfoToExcelService,
     private val traineeAttendanceToExcelService: TraineeAttendanceToExcelService,
 ) {
     @GetMapping("/{expo_id}")
@@ -98,19 +95,6 @@ class ExcelController(
         @Parameter(description = "박람회 ID", example = "11111111-1111-1111-1111-111111111111") @PathVariable("expo_id") expoId: String,
         res: HttpServletResponse,
     ) = standardParticipantInfoToExcelService.execute(expoId).writeTo(res)
-
-    @GetMapping("/program/{expo_id}")
-    @ApiResponse(
-        responseCode = "400",
-        description = "필수 programId 누락·숫자 아님",
-        content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-    )
-    @Operation(summary = "일반 프로그램 참가자 명단 다운로드", description = "일반 프로그램 한 회차의 명단입니다. 참가자 0명은 머리글만 출력하며 프로그램 없음은 404입니다.")
-    fun programParticipantInfoToExcel(
-        @Parameter(description = "박람회 ID", example = "11111111-1111-1111-1111-111111111111") @PathVariable("expo_id") expoId: String,
-        @Parameter(description = "일반 프로그램 회차 ID", example = "7") @RequestParam("programId") programId: Long,
-        res: HttpServletResponse,
-    ) = programParticipantInfoToExcelService.execute(expoId, programId).writeTo(res)
 
     @GetMapping("/trainee/{trainee_id}")
     @Operation(summary = "개인 연수 출석부 다운로드", description = "신청 강연의 일정으로 만드는 작성용 양식이며 실제 출석/이수 결과가 아닙니다. 연수자·신청 프로그램 없음은 404입니다.")

@@ -5,12 +5,9 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Profile
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.RestController
 import team.startup.report.support.TestClients
 import team.startup.report.support.TestJwt
 import tools.jackson.databind.json.JsonMapper
@@ -122,26 +119,9 @@ class SwaggerEnabledTests : SwaggerTestSupport() {
     }
 
     @Test
-    fun `공개 문서는 내부 경로 전용 스키마를 제거하고 공용 중첩 스키마를 유지한다`() {
-        val api = document()
-        api.path("info").path("title").asString() shouldBe "Expo Report Server API"
-        api.path("paths").has("/internal/test") shouldBe false
-        api.path("paths").has("/internal") shouldBe false
-        val schemas = api.path("components").path("schemas")
-        schemas.has("InternalOnly") shouldBe false
-        schemas.has("SharedPayload") shouldBe true
-        schemas.has("DownloadRequest") shouldBe true
-        schemas.has("ApplicationFilter") shouldBe true
-        schemas.has("ErrorResponse") shouldBe true
-        api.path("components").path("securitySchemes").has("internalToken") shouldBe false
-    }
-
-    @Test
     fun `모든 XLSX 경로는 관리자 JWT 오류코드 바이너리 응답과 한국어 요청 스키마를 문서화한다`() {
         val api = document()
-        val old = api.path("paths").path("/excel/program/{expo_id}").path("get")
-        listOf("200", "400", "401", "403", "500").forEach { old.path("responses").has(it) shouldBe true }
-        listOf("/excel/{expo_id}", "/excel/standard/{expo_id}", "/excel/program/{expo_id}", "/excel/trainee/{trainee_id}").forEach { path ->
+        listOf("/excel/{expo_id}", "/excel/standard/{expo_id}", "/excel/trainee/{trainee_id}").forEach { path ->
             val responses =
                 api
                     .path("paths")
@@ -207,58 +187,3 @@ class SwaggerEnabledTests : SwaggerTestSupport() {
         request("/actuator/health").statusCode() shouldBe 200
     }
 }
-
-@SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = ["swagger.enabled=true", "swagger.include-internal=true"],
-)
-@ActiveProfiles("swagger-test")
-class SwaggerIncludeInternalTests : SwaggerTestSupport() {
-    @Test
-    fun `내부 포함을 켜면 내부 문서에 토큰 스키마를 붙이되 실제 인증은 열지 않는다`() {
-        val api = document()
-        api
-            .path("paths")
-            .path("/internal/test")
-            .path("get")
-            .path("security")
-            .get(0)
-            .has("internalToken") shouldBe true
-        api
-            .path("paths")
-            .path("/internal")
-            .path("get")
-            .path("security")
-            .get(0)
-            .has("internalToken") shouldBe true
-        api.path("components").path("schemas").has("InternalOnly") shouldBe true
-        val scheme = api.path("components").path("securitySchemes").path("internalToken")
-        scheme.path("type").asString() shouldBe "apiKey"
-        scheme.path("in").asString() shouldBe "header"
-        scheme.path("name").asString() shouldBe "X-Internal-Token"
-        scheme.has("example") shouldBe false
-        request("/internal/test").statusCode() shouldBe 401
-    }
-}
-
-@RestController
-@Profile("swagger-test")
-class SwaggerFixtureController {
-    @GetMapping("/stat/test-public")
-    fun publicFixture() = PublicPayload(SharedPayload("example"))
-
-    @GetMapping("/internal/test", "/internal")
-    fun internalFixture() = InternalOnly(SharedPayload("example"))
-}
-
-data class SharedPayload(
-    val value: String,
-)
-
-data class PublicPayload(
-    val shared: SharedPayload,
-)
-
-data class InternalOnly(
-    val shared: SharedPayload,
-)

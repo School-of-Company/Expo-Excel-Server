@@ -24,7 +24,6 @@ import team.startup.report.domain.excel.presentation.controller.ExcelController
 import team.startup.report.domain.excel.presentation.controller.ExcelDownloadController
 import team.startup.report.domain.excel.service.impl.ExcelDownloadServiceImpl
 import team.startup.report.domain.excel.service.impl.HttpReportSource
-import team.startup.report.domain.excel.service.impl.ProgramParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
@@ -53,7 +52,6 @@ private val TARGET = "/internal/expos/$EVENT/program-session-applications/report
     HttpReportSource::class,
     TraineeInfoToExcelServiceImpl::class,
     StandardParticipantInfoToExcelServiceImpl::class,
-    ProgramParticipantInfoToExcelServiceImpl::class,
     TraineeAttendanceToExcelServiceImpl::class,
     ExcelDownloadTests.ClientConfig::class,
 )
