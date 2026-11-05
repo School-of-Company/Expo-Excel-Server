@@ -83,13 +83,19 @@ class ProgramAttendanceExcelServiceImpl(
             val people =
                 when (programType) {
                     SessionType.STANDARD -> {
-                        downloads
-                            .readAll { user.standardParticipantPage(id, it) }
-                            .associate { it.participantId to AttendancePerson(it.name, it.school.requiredText()) }
+                        (applications.map { it.participantId } + records.mapNotNull { it.participantId })
+                            .distinct()
+                            .chunked(UserClient.MAX_ENTRY_CARD_IDS)
+                            .flatMap { user.entryCards(id, it, emptyList()).standardParticipants }
+                            .associate { it.participantId to AttendancePerson(it.name, it.school) }
                     }
 
                     SessionType.TRAINING -> {
-                        downloads.readAll { user.traineePage(id, it) }.associate { it.traineeId to AttendancePerson(it.name, it.school) }
+                        (applications.mapNotNull { it.traineeId } + records.mapNotNull { it.traineeId })
+                            .distinct()
+                            .chunked(UserClient.MAX_ENTRY_CARD_IDS)
+                            .flatMap { user.entryCards(id, emptyList(), it).trainees }
+                            .associate { it.traineeId to AttendancePerson(it.name, it.school) }
                     }
                 }
             val (confirmed, mismatched) = combine(programType, applications, records, people)
