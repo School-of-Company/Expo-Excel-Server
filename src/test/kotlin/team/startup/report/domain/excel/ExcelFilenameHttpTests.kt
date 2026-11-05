@@ -29,6 +29,8 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 
+private const val FILENAME_EXPO_ID = "11111111-1111-1111-1111-111111111111"
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(ExcelFilenameHttpTests.SourceConfig::class)
 class ExcelFilenameHttpTests {
@@ -41,10 +43,10 @@ class ExcelFilenameHttpTests {
     @Test
     fun `실제 Tomcat 응답은 한글 파일명을 보존하고 특수문자와 개행을 헤더 값으로 인코딩한다`() {
         provider.on(
-            "GET /internal/expo/expo-1/admin-access",
+            "GET /internal/expo/$FILENAME_EXPO_ID/admin-access",
             body =
                 mapOf(
-                    "expoId" to "expo-1",
+                    "expoId" to FILENAME_EXPO_ID,
                     "adminId" to 1,
                     "permission" to "APPLICATION_READ",
                     "policyVersion" to "GLOBAL_ADMIN_APPLICATION_READ_V1",
@@ -53,10 +55,10 @@ class ExcelFilenameHttpTests {
         )
         provider.on(
             "GET /internal/trainees/3/details",
-            body = mapOf("traineeId" to 3, "expoId" to "expo-1", "information" to mapOf("answers" to emptyMap<String, Any>())),
+            body = mapOf("traineeId" to 3, "expoId" to FILENAME_EXPO_ID, "information" to mapOf("answers" to emptyMap<String, Any>())),
         )
         source.trainees = listOf(Trainee("교원", "T", "010", ApplicationType.PRE, emptyMap(), emptyList()))
-        val trainees = download("/excel/expo-1", "사전 교원연수자 정보")
+        val trainees = download("/excel/$FILENAME_EXPO_ID", "사전 교원연수자 정보")
         ContentDisposition.parse(trainees).filename!! shouldMatch Regex("교원연수자_정보_\\d{8}_\\d{6}\\.xlsx")
 
         listOf("홍길동", "홍 길동+\";'*/\\%\r\nX-Injected: yes").forEach { name ->

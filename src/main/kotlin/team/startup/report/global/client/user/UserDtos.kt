@@ -1,6 +1,5 @@
 package team.startup.report.global.client.user
 
-import team.startup.report.domain.excel.service.ApplicationType
 import tools.jackson.databind.JsonNode
 
 /** User `InformationResDto`. 신청 답변은 문항 제목, 설문 답변은 문항 ID가 키다. [questions]는 제출 당시 스냅샷이고 없으면 null. */
@@ -94,3 +93,19 @@ data class TraineeEntryCard(
     val name: String?,
     val school: String? = null,
 )
+
+internal fun <T> readAll(
+    cursorError: () -> String = { "Check failed." },
+    fetch: (Long?) -> DetailPage<T>,
+): List<T> {
+    val items = mutableListOf<T>()
+    var cursor: Long? = null
+    do {
+        val page = fetch(cursor)
+        items += page.items
+        val next = page.nextCursor
+        check(next == null || (page.items.isNotEmpty() && (cursor == null || next > cursor)), cursorError)
+        cursor = next
+    } while (cursor != null)
+    return items
+}

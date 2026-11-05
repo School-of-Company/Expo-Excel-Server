@@ -18,7 +18,6 @@ import team.startup.report.domain.excel.presentation.dto.request.DownloadRequest
 import team.startup.report.domain.excel.service.ExcelDownloadService
 import team.startup.report.global.exception.ErrorResponse
 import team.startup.report.global.exception.ExpectedException
-import java.util.UUID
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
@@ -101,14 +100,7 @@ class ExcelDownloadController(
         res: HttpServletResponse,
     ) {
         if (servletRequest.parameterMap.isNotEmpty()) throw ExpectedException(HttpStatus.BAD_REQUEST, "쿼리 대신 요청 본문의 범위를 사용해 주세요.")
-        val eventId =
-            try {
-                UUID.fromString(expoId).also {
-                    if (!it.toString().equals(expoId, ignoreCase = true)) throw IllegalArgumentException()
-                }
-            } catch (_: IllegalArgumentException) {
-                throw ExpectedException(HttpStatus.BAD_REQUEST, "행사 ID는 UUID여야 합니다.")
-            }
+        val eventId = parseExpoId(expoId)
         service.execute(eventId, request).respond(res)
     }
 }

@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import jakarta.servlet.http.HttpServletResponse
-import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
@@ -16,8 +15,6 @@ import org.springframework.web.bind.annotation.RestController
 import team.startup.report.domain.excel.service.ProgramAttendanceExcelService
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.exception.ErrorResponse
-import team.startup.report.global.exception.ExpectedException
-import java.util.UUID
 
 @RestController
 @SecurityRequirement(name = "bearerAuth")
@@ -96,14 +93,7 @@ class ProgramAttendanceExcelController(
         @Parameter(description = "회차 ID", example = "7") @RequestParam("programId") programId: Long,
         res: HttpServletResponse,
     ) {
-        val eventId =
-            try {
-                UUID.fromString(expoId).also {
-                    if (!it.toString().equals(expoId, ignoreCase = true)) throw IllegalArgumentException()
-                }
-            } catch (_: IllegalArgumentException) {
-                throw ExpectedException(HttpStatus.BAD_REQUEST, "행사 ID는 UUID여야 합니다.")
-            }
+        val eventId = parseExpoId(expoId)
         service.execute(eventId, programType, programId).respond(res)
     }
 }

@@ -22,8 +22,8 @@ class TraineeAttendanceToExcelServiceImpl(
                     .sorted()
             if (dates.isEmpty()) throw excelNotFound("해당 연수자가 신청한 프로그램이 없습니다.")
             val filename = UriUtils.encode("Trainee_Attendance_${attendance.traineeName}.xlsx", Charsets.UTF_8)
-            ExcelFile(
-                "attachment; filename*=UTF-8''$filename",
+            ExcelFile.attachment(
+                filename,
                 renderTraineeAttendance(attendance, dates),
             )
         }

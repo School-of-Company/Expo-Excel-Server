@@ -6,14 +6,6 @@ spring:
     banner-mode: "off"
   config:
     import: optional:file:.env[.properties]
-  datasource:
-    url: jdbc:postgresql://localhost:${POSTGRES_PORT:35432}/${POSTGRES_DB:expo_report}
-    username: ${POSTGRES_USER:expo}
-    password: ${POSTGRES_PASSWORD}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
   security:
     user:
       name: ${LOCAL_SECURITY_USER:developer}
@@ -34,7 +26,6 @@ logging:
 
 swagger:
   enabled: ${SWAGGER_ENABLED:false}
-  include-internal: ${SWAGGER_INCLUDE_INTERNAL:false}
 
 springdoc:
   api-docs:

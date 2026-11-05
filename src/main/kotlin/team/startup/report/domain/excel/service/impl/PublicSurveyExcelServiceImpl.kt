@@ -10,10 +10,10 @@ import team.startup.report.domain.excel.service.PublicSurveyExcelService
 import team.startup.report.global.client.form.FormClient
 import team.startup.report.global.client.form.PublicSurveyAnswer
 import team.startup.report.global.client.form.PublicSurveyAnswerPage
+import team.startup.report.global.common.time.SEOUL
+import team.startup.report.global.common.time.TIMESTAMP
 import team.startup.report.global.exception.ExpectedException
 import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
  * GET /excel/public-surveys/{expo_id}. Form 공개 설문 응답을 마지막 커서까지 읽어 응답 1건 = 1행으로 쓴다.
@@ -27,17 +27,15 @@ class PublicSurveyExcelServiceImpl(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun execute(expoId: String): ExcelFile =
-        try {
+        wrapExcelFailure(
+            { "설문 응답 원천 조회 또는 파일 생성에 실패했습니다." },
+            HttpStatus.BAD_GATEWAY,
+            logFailure = { e -> log.error("공개 설문 응답 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message) },
+        ) {
             val (first, answers) = readAll(expoId)
             val now = OffsetDateTime.now(SEOUL)
             val filename = UriUtils.encode("만족도조사응답_${now.format(TIMESTAMP)}.xlsx", Charsets.UTF_8)
-            ExcelFile("attachment; filename*=UTF-8''$filename", renderPublicSurveyAnswers(expoId, first, answers, now))
-        } catch (e: ExpectedException) {
-            throw e
-        } catch (e: Exception) {
-            // 메시지는 공급자 이름과 상태 또는 아래 검사 문구만 담는다(원인·URL·본문 없음)
-            log.error("공개 설문 응답 엑셀 생성 실패: {} {}", e.javaClass.simpleName, e.message)
-            throw ExpectedException(HttpStatus.BAD_GATEWAY, "설문 응답 원천 조회 또는 파일 생성에 실패했습니다.")
+            ExcelFile.attachment(filename, renderPublicSurveyAnswers(expoId, first, answers, now))
         }
 
     private fun readAll(expoId: String): Pair<PublicSurveyAnswerPage, List<PublicSurveyAnswer>> {
@@ -78,7 +76,5 @@ class PublicSurveyExcelServiceImpl(
 
         // 페이지 1000건 × 100번 호출. 공개 설문 실측 응답은 수십 건이라 여유가 크다(실측 후 조정)
         const val MAX_ANSWERS = 100_000L
-        val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
-        val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
     }
 }

@@ -6,9 +6,9 @@ import team.startup.report.domain.excel.renderer.renderTrainees
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.TraineeInfoToExcelService
+import team.startup.report.global.common.time.SEOUL
+import team.startup.report.global.common.time.TIMESTAMP
 import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /** GET /excel/{expo_id} */
 @Service
@@ -21,11 +21,6 @@ class TraineeInfoToExcelServiceImpl(
             if (trainees.isEmpty()) throw excelNotFound("연수자가 존재하지 않습니다.")
             val timestamp = LocalDateTime.now(SEOUL).format(TIMESTAMP)
             val filename = UriUtils.encode("교원연수자_정보_$timestamp.xlsx", Charsets.UTF_8)
-            ExcelFile("attachment; filename*=UTF-8''$filename", renderTrainees(trainees))
+            ExcelFile.attachment(filename, renderTrainees(trainees))
         }
-
-    private companion object {
-        val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
-        val TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
-    }
 }

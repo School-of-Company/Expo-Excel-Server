@@ -24,10 +24,8 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v5
-      - name: Start local PostgreSQL
-        run: |
-          cp .env.example .env
-          docker compose up -d --wait
+      - name: Prepare local settings
+        run: cp .env.example .env
       - name: Build, test and check formatting
         run: ./gradlew build ktlintCheck spotlessCheck --no-daemon
       - name: Upload test reports
@@ -37,9 +35,3 @@ jobs:
           name: test-reports
           path: build/reports/tests/test
           if-no-files-found: ignore
-      - name: Show service logs on failure
-        if: failure()
-        run: docker compose logs
-      - name: Stop services
-        if: always()
-        run: docker compose down

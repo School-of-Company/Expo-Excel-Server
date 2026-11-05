@@ -10,6 +10,8 @@ private val log = LoggerFactory.getLogger("team.startup.report.domain.excel")
 
 internal fun wrapExcelFailure(
     message: (Exception) -> String,
+    status: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR,
+    logFailure: (Exception) -> Unit = { log.error("엑셀 파일 생성 실패", it) },
     block: () -> ExcelFile,
 ): ExcelFile =
     try {
@@ -17,10 +19,15 @@ internal fun wrapExcelFailure(
     } catch (e: ExpectedException) {
         throw e
     } catch (e: Exception) {
-        log.error("엑셀 파일 생성 실패", e)
-        throw excelFailure(message(e))
+        logFailure(e)
+        throw ExpectedException(status, message(e))
     }
 
-internal fun excelFailure(message: String) = ExpectedException(HttpStatus.INTERNAL_SERVER_ERROR, message)
-
 internal fun excelNotFound(message: String) = ExpectedException(HttpStatus.NOT_FOUND, message)
+
+internal fun valid(
+    condition: Boolean,
+    message: String,
+) {
+    if (!condition) throw ExpectedException(HttpStatus.BAD_REQUEST, message)
+}

@@ -22,14 +22,10 @@ interface ReportSource {
     fun traineeAttendance(traineeId: Long): TraineeAttendance?
 }
 
-enum class ApplicationType(
-    val koreanName: String,
-) {
-    PRE("사전 등록"),
-    FIELD("현장 등록"),
-}
+// 기존 서비스 DTO를 사용하는 호출자의 소스 호환성을 유지한다.
+typealias ApplicationType = team.startup.report.global.client.user.ApplicationType
 
-enum class TrainingCategory { ESSENTIAL, CHOICE }
+typealias TrainingCategory = team.startup.report.global.client.expo.TrainingCategory
 
 /**
  * ReportSource 응답 DTO. 엑셀 한 행의 원천 데이터. 동적 답변(information, surveyAnswer)은 키가 문항 제목이고 순서가 보존된 맵이다.

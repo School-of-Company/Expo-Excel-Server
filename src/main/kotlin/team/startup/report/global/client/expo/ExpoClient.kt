@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
-import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.global.client.ClientResilience
 import team.startup.report.global.client.ProviderStatusException
 import team.startup.report.global.client.fetchOrNull

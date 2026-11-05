@@ -5,12 +5,24 @@ import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Profile
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.setup.MockMvcBuilders
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RestController
+import team.startup.report.domain.excel.security.ExcelAccessInterceptor
 import team.startup.report.global.client.StubProvider
-import team.startup.report.global.security.ExcelAccessInterceptor
+import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.user.UserClient
+import team.startup.report.global.exception.GlobalExceptionHandler
 import team.startup.report.support.TestJwt
 import java.net.URI
 import java.net.http.HttpClient
@@ -25,6 +37,12 @@ private const val ACCESS = "GET /internal/expo/$EVENT/admin-access"
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ExcelAccessTests {
+    @Autowired
+    private lateinit var expoClient: ExpoClient
+
+    @Autowired
+    private lateinit var userClient: UserClient
+
     @Value("\${local.server.port}")
     private var port: Int = 0
 
@@ -36,6 +54,60 @@ class ExcelAccessTests {
         }
         expo.on(ACCESS, body = access())
         user.on("GET /internal/trainees/10/details", body = trainee())
+    }
+
+    @Test
+    fun `새 컨트롤러도 행사 권한을 확인하고 ID 누락과 형식 오류는 거절한다`() {
+        val mvc =
+            MockMvcBuilders
+                .standaloneSetup(UnlistedExcelController())
+                .addInterceptors(ExcelAccessInterceptor(expoClient, userClient))
+                .setControllerAdvice(GlobalExceptionHandler())
+                .build()
+        SecurityContextHolder.getContext().authentication =
+            JwtAuthenticationToken(
+                Jwt
+                    .withTokenValue("test")
+                    .header("alg", "RS256")
+                    .subject("1")
+                    .build(),
+            )
+        try {
+            expo.on(ACCESS, 403, "denied")
+            mvc
+                .perform(get("/excel/unlisted/$EVENT"))
+                .andReturn()
+                .response.status shouldBe 403
+            expo.on(ACCESS, body = access())
+            val allowed = mvc.perform(get("/excel/unlisted/$EVENT")).andReturn().response
+            allowed.status shouldBe 200
+            allowed.contentAsString shouldBe "unchanged"
+            listOf(user, expo, application).forEach { it.requests.clear() }
+            listOf(
+                "/excel/missing",
+                "/excel/unlisted/invalid",
+                "/excel/unlisted/1-1-1-1-1",
+                "/excel/unlisted-camel/invalid",
+                "/excel/unlisted-trainee/invalid",
+                "/excel/unlisted-trainee/0",
+                "/excel/unlisted-trainee/-1",
+                "/excel/unlisted-trainee/9223372036854775808",
+            ).forEach {
+                val response = mvc.perform(get(it)).andReturn().response
+                response.status shouldBe 400
+                response.contentAsString shouldBe """{"status":400,"message":"잘못된 요청입니다."}"""
+            }
+            listOf(user, expo, application).sumOf { it.requests.size } shouldBe 0
+        } finally {
+            SecurityContextHolder.clearContext()
+        }
+    }
+
+    @Test
+    fun `목록에 없는 excel 경로와 잘못된 연수자 ID를 거절한다`() {
+        send("/excel/unlisted/$EVENT").statusCode() shouldBe 403
+        send("/excel/trainee/not-a-number").statusCode() shouldBe 400
+        listOf(user, expo, application).sumOf { it.requests.size } shouldBe 0
     }
 
     @Test
@@ -264,7 +336,6 @@ class ExcelAccessTests {
         listOf(
             "/excel/$EVENT" to null,
             "/excel/standard/$EVENT" to null,
-            "/excel/program/$EVENT?programId=7" to null,
             "/excel/trainee/10" to null,
             "/excel/expos/$EVENT/downloads" to """{"template":"STANDARD","scope":"FILTER"}""",
         )
@@ -329,4 +400,11 @@ class ExcelAccessTests {
             }
         }
     }
+}
+
+@RestController
+@Profile("excel-access-test")
+private class UnlistedExcelController {
+    @GetMapping("/excel/unlisted/{expo_id}", "/excel/unlisted-camel/{expoId}", "/excel/unlisted-trainee/{trainee_id}", "/excel/missing")
+    fun download() = "unchanged"
 }
