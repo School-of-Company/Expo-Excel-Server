@@ -15,6 +15,10 @@ server:
   address: 127.0.0.1
   port: ${SERVER_PORT:8083}
 
+eureka:
+  client:
+    enabled: false
+
 # 요청 1건당 접근 로그 1줄(module=HttpAccess). 끄려면 LOGGING_HTTP_ACCESS_ENABLED=false
 logging:
   http-access:

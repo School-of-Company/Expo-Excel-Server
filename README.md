@@ -47,6 +47,7 @@ OpenAPI JSON은 `/stat/v3/api-docs`, Swagger UI는 `/stat/swagger-ui.html`에서
 Spring Security가 적용되어 있으므로 `.env`의 `LOCAL_SECURITY_USER`와
 `LOCAL_SECURITY_PASSWORD`로 로그인하세요. 예제 계정은 로컬 전용입니다.
 설정은 `application.yaml` 하나로 관리하고 환경별 값은 환경 변수로 지정합니다.
+Eureka 등록은 기본적으로 비활성화합니다.
 dev·prod 배포 환경에도 `JWT_PUBLIC_KEY`를 넣어야 합니다(Config-Server `report-*.yml`에는 아직 없음).
 
 ```bash
