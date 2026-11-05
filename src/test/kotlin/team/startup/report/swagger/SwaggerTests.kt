@@ -69,7 +69,14 @@ class SwaggerDisabledTests : SwaggerTestSupport() {
                 .getEncoder()
                 .encodeToString("developer:expo_report_local".toByteArray())
         listOf("/stat/v3/api-docs", "/stat/v3/api-docs/swagger-config", "/stat/swagger-ui.html", "/stat/swagger-ui/index.html").forEach {
-            request(it).statusCode() shouldBe 403
+            val response = request(it)
+            response.statusCode() shouldBe 403
+            response
+                .headers()
+                .firstValue("Content-Type")
+                .orElse("")
+                .startsWith("application/json") shouldBe true
+            JSON.readTree(response.body()) shouldBe JSON.readTree("""{"status":403,"message":"접근 권한이 없습니다."}""")
             request(it, headers = mapOf("Authorization" to "Basic $login")).statusCode() shouldBe 403
         }
         request("/excel/standard/test").statusCode() shouldBe 401
