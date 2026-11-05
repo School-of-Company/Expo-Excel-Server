@@ -82,6 +82,7 @@ class ProgramAttendanceExcelTests {
     fun checkTokens() {
         application.requests.forEach { it.token shouldBe "application-test" }
         user.requests.forEach { it.token shouldBe "user-test" }
+        user.requests.all { it.method == "POST" && it.uri == "/internal/participants/entry-cards" } shouldBe true
         expo.requests.forEach { it.token shouldBe "expo-test" }
         attendance.requests.forEach { it.token shouldBe "attendance-test" }
     }
@@ -113,7 +114,7 @@ class ProgramAttendanceExcelTests {
                 person(3, "다참가자", "다학교"),
                 person(4, null, "라학교"),
                 person(6, "바참가자", null),
-                person(10, "차참가자", null),
+                person(10, "차참가자", ""),
             ),
         )
         attendance.on(
@@ -143,7 +144,7 @@ class ProgramAttendanceExcelTests {
                     program + listOf("1", "가참가자", "가학교", id(2).toString(), "확정", "출석", "2026-10-21", "09:58", null),
                     program + listOf("2", "나참가자", null, id(4).toString(), "확정", "미출석", null, null, null),
                     program + listOf("4", null, "라학교", id(6).toString(), "확정", "출석", "2026-10-31", "10:05", null),
-                    program + listOf("10", "차참가자", null, id(8).toString(), "확정", "미출석", null, null, null),
+                    program + listOf("10", "차참가자", "", id(8).toString(), "확정", "미출석", null, null, null),
                 )
             book.getSheet("신청 불일치 출석").values() shouldBe
                 listOf(
@@ -157,6 +158,9 @@ class ProgramAttendanceExcelTests {
         body shouldContain "\"status\":null"
         body shouldContain "\"programType\":\"STANDARD\""
         body shouldContain "\"programId\":7"
+        val ids = StubProvider.JSON.readTree(user.requests.single().body)
+        ids["standardParticipantIds"].toList().map { it.longValue() }.toSet() shouldBe setOf(1L, 2L, 3L, 4L, 6L, 10L, 77L)
+        ids["traineeIds"].size() shouldBe 0
     }
 
     @Test
@@ -182,8 +186,8 @@ class ProgramAttendanceExcelTests {
             ),
         )
         user.on(
-            "GET /internal/expos/$EVENT/trainees/details?size=500",
-            body = mapOf("items" to listOf(trainee(1, "연수자1"), trainee(7, "연수자7")), "nextCursor" to null),
+            "POST /internal/participants/entry-cards",
+            body = mapOf("standardParticipants" to emptyList<Any>(), "trainees" to listOf(trainee(1, "연수자1"), trainee(7, "연수자7"))),
         )
         attendance.on(
             "GET /internal/program-attendances/training/9",
@@ -194,6 +198,9 @@ class ProgramAttendanceExcelTests {
         val response = send("TRAINING", 9)
 
         response.status shouldBe 200
+        val ids = StubProvider.JSON.readTree(user.requests.single().body)
+        ids["standardParticipantIds"].size() shouldBe 0
+        ids["traineeIds"].toList().map { it.longValue() } shouldBe listOf(1L, 7L)
         File("build/e08-synthetic-training.xlsx").writeBytes(response.contentAsByteArray)
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
             val program = listOf("연수", "9", "연수", "2026-10-31 13:00", "2026-10-31 15:00")
@@ -230,6 +237,51 @@ class ProgramAttendanceExcelTests {
     }
 
     @Test
+    fun `일반과 연수 출석 ID는 중복 없이 1000개씩 나눠 조회한다`() {
+        expo.on(
+            "POST /internal/expo/$EVENT/training-programs/batch",
+            body =
+                listOf(
+                    mapOf(
+                        "id" to 9,
+                        "title" to "연수",
+                        "category" to "ESSENTIAL",
+                        "startedAt" to "2026-10-31 13:00",
+                        "endedAt" to "2026-10-31 15:00",
+                    ),
+                ),
+        )
+        listOf("STANDARD" to 7L, "TRAINING" to 9L).forEach { (type, program) ->
+            snapshot(listOf(app(1, participant = 1, trainee = 1, type = type, program = program)))
+            people(emptyList())
+            attendance.on(
+                "GET /internal/program-attendances/${type.lowercase()}/$program",
+                body =
+                    (1L..1001L).map {
+                        if (type == "STANDARD") {
+                            record(participant = it, date = "2026-10-31", time = "10:00")
+                        } else {
+                            record(trainee = it, date = "2026-10-31", time = "10:00")
+                        }
+                    },
+            )
+            user.requests.clear()
+
+            send(type, program).status shouldBe 200
+
+            val bodies = user.requests.map { StubProvider.JSON.readTree(it.body) }
+            val key = if (type == "STANDARD") "standardParticipantIds" else "traineeIds"
+            val other = if (type == "STANDARD") "traineeIds" else "standardParticipantIds"
+            bodies.map { it[key].size() } shouldBe listOf(1000, 1)
+            bodies.flatMap { it[key].toList().map { value -> value.longValue() } } shouldBe (1L..1001L).toList()
+            bodies.forEach {
+                it["expoId"].stringValue() shouldBe EVENT.toString()
+                it[other].size() shouldBe 0
+            }
+        }
+    }
+
+    @Test
     fun `신청과 출석이 모두 없으면 머리글만 있는 두 시트다`() {
         snapshot(emptyList())
         people(emptyList())
@@ -238,6 +290,7 @@ class ProgramAttendanceExcelTests {
         val response = send("STANDARD", 7)
 
         response.status shouldBe 200
+        user.requests shouldBe emptyList()
         XSSFWorkbook(ByteArrayInputStream(response.contentAsByteArray)).use { book ->
             book.getSheet("실제 출석 결과").values() shouldBe listOf(HEADERS)
             book.getSheet("신청 불일치 출석").values() shouldBe listOf(HEADERS)
@@ -278,7 +331,7 @@ class ProgramAttendanceExcelTests {
         send("STANDARD", 7).status shouldBe 502
 
         snapshot(listOf(app(1, participant = 1)))
-        user.on("GET /internal/expos/$EVENT/standard-participants/details?size=500", 500, """{"status":500}""")
+        user.on("POST /internal/participants/entry-cards", 500, """{"status":500}""")
         send("STANDARD", 7).status shouldBe 502
     }
 
@@ -338,7 +391,7 @@ class ProgramAttendanceExcelTests {
         )
 
     private fun people(items: List<Any>) =
-        user.on("GET /internal/expos/$EVENT/standard-participants/details?size=500", body = mapOf("items" to items, "nextCursor" to null))
+        user.on("POST /internal/participants/entry-cards", body = mapOf("standardParticipants" to items, "trainees" to emptyList<Any>()))
 
     private fun id(n: Int) = UUID.fromString("00000000-0000-0000-0000-%012d".format(n))
 
