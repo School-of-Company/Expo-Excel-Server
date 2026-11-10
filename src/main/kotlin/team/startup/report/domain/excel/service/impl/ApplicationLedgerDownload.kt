@@ -6,7 +6,6 @@ import team.startup.report.domain.excel.renderer.LedgerMeta
 import team.startup.report.domain.excel.renderer.renderApplicationLedger
 import team.startup.report.domain.excel.service.ExcelFile
 import team.startup.report.global.client.application.ApplicationRow
-import team.startup.report.global.client.user.readAll
 import team.startup.report.global.common.time.SEOUL
 import team.startup.report.global.common.time.TIMESTAMP
 import java.time.Instant
@@ -19,12 +18,12 @@ internal fun DownloadTemplates.applicationLedger(
     rows: List<ApplicationRow>,
 ): ExcelFile {
     val ids = rows.map { it.participantId }.toSet()
-    val people = readAll { user.standardParticipantPage(expoId, it) }.filter { it.participantId in ids }
-    check(people.map { it.participantId }.toSet() == ids && people.size == ids.size)
+    val people = user.allStandardParticipants(expoId).filter { it.participantId in ids }
+    people.checkIds(ids) { it.participantId }
     val traineeIds = rows.mapNotNullTo(HashSet()) { it.traineeId }
     val trainees =
-        if (traineeIds.isEmpty()) emptyList() else readAll { user.traineePage(expoId, it) }.filter { it.traineeId in traineeIds }
-    check(trainees.map { it.traineeId }.toSet() == traineeIds && trainees.size == traineeIds.size)
+        if (traineeIds.isEmpty()) emptyList() else user.allTrainees(expoId).filter { it.traineeId in traineeIds }
+    trainees.checkIds(traineeIds) { it.traineeId }
     // 이름·연락처·이력·접수번호가 빠진 원천은 정상 미응답처럼 보이므로 부분 파일을 만들지 않는다
     check(rows.all { it.receiptNumber != null && it.history != null })
     val byTrainee = rows.groupBy { it.traineeId }

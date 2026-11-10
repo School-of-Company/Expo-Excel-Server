@@ -17,7 +17,6 @@ import team.startup.report.global.client.application.ApplicationStatus
 import team.startup.report.global.client.application.ApplicationTarget
 import team.startup.report.global.client.expo.ExpoClient
 import team.startup.report.global.client.user.UserClient
-import team.startup.report.global.client.user.readAll
 import team.startup.report.global.common.time.parseProgramDateTimeOrNull
 import team.startup.report.global.exception.ExpectedException
 import java.time.Instant
@@ -58,7 +57,7 @@ class ExcelDownloadServiceImpl(
     private val templates = DownloadTemplates(user, expo)
 
     // 사전등록 원장은 별도 원천(Application #284)이라 따로 둔다. 같은 공급자 클라이언트와 실패 규칙을 쓴다
-    private val registration = RegistrationLedger(application) { expoId -> readAll { user.standardParticipantPage(expoId, it) } }
+    private val registration = RegistrationLedger(application) { expoId -> user.allStandardParticipants(expoId) }
 
     private fun validate(request: DownloadRequest) {
         valid(request.keys == null && request.registrationFilter == null, "접수대장 key와 등록 필터는 등록 원장에만 사용할 수 있습니다.")

@@ -8,7 +8,6 @@ import team.startup.report.domain.excel.service.ProgramApplicationColumns
 import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.idKeyedAnswers
 import team.startup.report.global.client.application.ApplicationRow
-import team.startup.report.global.client.user.readAll
 import team.startup.report.global.common.time.SEOUL
 import java.time.format.DateTimeFormatter
 
@@ -25,8 +24,8 @@ internal fun DownloadTemplates.program(
     val byParticipant = rows.groupBy { it.participantId }
     check(expo.standardProgram(expoId, request.programId!!) != null)
     // 소속(학교)은 상세 목록에만 있다. ponytail: 행사 전체를 읽는다. 느려지면 User 일괄 조회에 school을 더한다
-    val people = readAll { user.standardParticipantPage(expoId, it) }.filter { it.participantId in ids }
-    check(people.map { it.participantId }.toSet() == ids && people.size == ids.size)
+    val people = user.allStandardParticipants(expoId).filter { it.participantId in ids }
+    people.checkIds(ids) { it.participantId }
     return ExcelFile(
         "attachment; filename=\"Program_Participant_Information.xlsx\"",
         renderProgramParticipants(
