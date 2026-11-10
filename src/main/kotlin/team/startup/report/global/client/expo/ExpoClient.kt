@@ -10,8 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import team.startup.report.global.client.ClientResilience
 import team.startup.report.global.client.ProviderStatusException
-import team.startup.report.global.client.fetchOrNull
-import team.startup.report.global.client.fetchRequired
+import team.startup.report.global.client.fetch
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 
@@ -50,13 +49,13 @@ class ExpoClient(
     }
 
     /** 없으면 null */
-    fun expo(expoId: String): ExpoSummary? = resilience.read.fetchOrNull { api.expo(expoId) }
+    fun expo(expoId: String): ExpoSummary? = resilience.read.fetch(notFoundAsNull = true) { api.expo(expoId) }
 
     /** 행사가 없거나 프로그램이 그 행사 소속이 아니면 null(공급자는 둘 다 404) */
     fun standardProgram(
         expoId: String,
         programId: Long,
-    ): StandardProgramSummary? = resilience.read.fetchOrNull { api.standardProgram(expoId, programId) }
+    ): StandardProgramSummary? = resilience.read.fetch(notFoundAsNull = true) { api.standardProgram(expoId, programId) }
 
     /** 없거나 다른 행사 소속이면 null(공급자 404) */
     fun trainingProgram(
@@ -64,7 +63,7 @@ class ExpoClient(
         programId: Long,
     ): TrainingProgramSummary? =
         resilience.write
-            .fetchOrNull { api.trainingPrograms(expoId, mapOf("programIds" to listOf(programId))) }
+            .fetch(notFoundAsNull = true) { api.trainingPrograms(expoId, mapOf("programIds" to listOf(programId))) }
             ?.single()
             ?.also { check(it.id == programId) { "$NAME 서비스 대상 오류" } }
 
@@ -74,7 +73,7 @@ class ExpoClient(
         programIds: List<Long>,
     ): List<TrainingProgramSummary> {
         require(programIds.size <= MAX_PROGRAM_IDS)
-        return resilience.write.fetchRequired { api.trainingPrograms(expoId, mapOf("programIds" to programIds)) }
+        return resilience.write.fetch { api.trainingPrograms(expoId, mapOf("programIds" to programIds)) }!!
     }
 
     companion object {

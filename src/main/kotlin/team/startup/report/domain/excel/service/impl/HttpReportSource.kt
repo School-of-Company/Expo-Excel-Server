@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component
 import team.startup.report.domain.excel.security.ExcelAccessInterceptor
 import team.startup.report.domain.excel.service.MappedAnswers
 import team.startup.report.domain.excel.service.ParticipantProfile
-import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
@@ -86,25 +85,6 @@ class HttpReportSource(
                     notificationPhoneNumber = trainee.participantId?.let { people.getValue(it).notificationPhoneNumber },
                 )
             }.also { unresolved.report("trainee", expoId) }
-    }
-
-    override fun programParticipants(
-        expoId: String,
-        programId: Long,
-    ): List<ProgramParticipant>? {
-        expo.standardProgram(expoId, programId) ?: return null
-        // 신청 순서(applicationId 오름차순)
-        val applications = application.standardApplications(programId).sortedBy { it.applicationId }
-        val participantIds = applications.map { it.participantId }.distinct()
-        val participants =
-            participantIds
-                .chunked(UserClient.MAX_BRIEF_IDS)
-                .flatMap { user.standardParticipantBriefs(expoId, it) }
-                .associateBy { it.participantId }
-        return applications.map {
-            val participant = participants[it.participantId] ?: error("${UserClient.NAME} 서비스 응답 누락")
-            ProgramParticipant(participant.name, participant.phoneNumber, participant.personalInformationStatus)
-        }
     }
 
     override fun traineeAttendance(traineeId: Long): TraineeAttendance? {
