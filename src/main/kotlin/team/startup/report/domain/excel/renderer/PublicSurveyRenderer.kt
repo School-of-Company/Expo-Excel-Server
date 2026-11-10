@@ -5,19 +5,16 @@ import team.startup.report.domain.excel.service.PARTICIPANT_TYPE_LABELS
 import team.startup.report.global.client.form.PublicSurveyAnswer
 import team.startup.report.global.client.form.PublicSurveyAnswerPage
 import team.startup.report.global.client.form.PublicSurveyQuestion
+import team.startup.report.global.common.time.REPORT_DATE_TIME
 import team.startup.report.global.common.time.SEOUL
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.ObjectNode
 import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 // 익명 공개 설문 응답(Form #215)을 응답 1건 = 1행으로 쓴다. 참가자 명단과 합치지 않고 전화번호·경품 정보는 원천에도 없다.
 // 셀 표기: 키 없음 = 빈 칸(미응답), 저장값 null = "(null)", CHECKBOX = "true"/"false", 선택형 = 보기 문구(MULTIPLE은 ", "로 잇는다).
 // 정의에 없는 보기 키·형식이 다른 값은 추정하지 않고 "[미복원] 저장값"으로, 정의에 없는 문항 ID의 답변은 "미복원 답변" 열에 JSON으로 둔다.
 
-private val KST_OUTPUT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-private const val CELL_MAX_LEN = 32767
-private val CONTROL = Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]")
 private const val UNRESOLVED = "[미복원] "
 private val FIXED_HEADERS = listOf("응답 ID", "설문 ID", "설문 제목", "제출 일시(KST)", "직업(자가 선택)")
 
@@ -81,7 +78,7 @@ fun renderPublicSurveyAnswers(
             setColumnWidth(1, 90 * 256)
         }
     listOf(
-        "생성 일시(KST)" to generatedAt.atZoneSameInstant(SEOUL).format(KST_OUTPUT),
+        "생성 일시(KST)" to generatedAt.atZoneSameInstant(SEOUL).format(REPORT_DATE_TIME),
         "행사 ID" to expoId,
         "설문 ID" to first.survey.id,
         "설문 제목" to first.survey.title,
@@ -129,19 +126,10 @@ private fun label(
     choice.takeIf { it.isString }?.let { jsonData?.get(it.stringValue()) }?.let(::choiceText)
         ?: (UNRESOLVED + if (choice.isString) choice.stringValue() else choice.toString())
 
-/** jsonData 값은 "문구" 또는 {"value": "문구", "isAlwaysSelected": true} */
-private fun choiceText(node: JsonNode?): String? =
-    when {
-        node == null -> null
-        node.isString -> node.stringValue()
-        node.isObject -> node.get("value")?.takeIf { it.isString }?.stringValue()
-        else -> null
-    }
-
 // 공급자 형식이 달라도 값을 잃지 않도록 못 읽으면 원문을 쓴다
 private fun kst(value: String): String =
     try {
-        OffsetDateTime.parse(value).atZoneSameInstant(SEOUL).format(KST_OUTPUT)
+        OffsetDateTime.parse(value).atZoneSameInstant(SEOUL).format(REPORT_DATE_TIME)
     } catch (_: Exception) {
         value
     }
@@ -151,5 +139,5 @@ private fun text(value: String): String =
     value
         .replace("\r\n", "\n")
         .replace('\r', '\n')
-        .replace(CONTROL, "")
-        .take(CELL_MAX_LEN)
+        .replace(CELL_CONTROL_CHARACTERS, "")
+        .take(EXCEL_CELL_MAX_LEN)

@@ -13,14 +13,14 @@ import team.startup.report.global.client.application.PreregistrationStatus
 import team.startup.report.global.client.application.PreregistrationTarget
 import team.startup.report.global.client.user.ApplicationType
 import team.startup.report.global.client.user.StandardParticipantDetail
+import team.startup.report.global.common.time.REPORT_DATE_TIME
 import team.startup.report.global.common.time.SEOUL
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 
-private val KST: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(SEOUL)
+private val KST = REPORT_DATE_TIME.withZone(SEOUL)
 private val STATUS_LABELS =
     mapOf(
         PreregistrationStatus.CONFIRMED to "확정",
