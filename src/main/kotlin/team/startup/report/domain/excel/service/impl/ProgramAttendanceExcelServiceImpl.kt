@@ -73,6 +73,7 @@ class ProgramAttendanceExcelServiceImpl(
                     }
                 } ?: throw ExpectedException(HttpStatus.NOT_FOUND, "프로그램을 찾을 수 없습니다.")
             // ponytail: 기존 FILTER 대상 조회(스냅샷·커서·10,000건 상한·행사 검증)를 그대로 쓴다. STANDARD 양식은 필터를 바꾸지 않는다.
+            // 한 회차의 신청이 1만 건을 넘어 413이 나면 회차 전용 조회로 바꾼다.
             val applications =
                 downloads
                     .targets(
