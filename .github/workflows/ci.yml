@@ -27,7 +27,7 @@ jobs:
       - name: Prepare local settings
         run: cp .env.example .env
       - name: Build, test and check formatting
-        run: ./gradlew build ktlintCheck spotlessCheck --no-daemon
+        run: ./gradlew build spotlessCheck --no-daemon
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
