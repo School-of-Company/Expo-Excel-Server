@@ -31,7 +31,7 @@ jobs:
       - name: Prepare local settings
         run: cp .env.example .env
 
-      # build = 테스트·린트(spotless) + bootJar. 테스트가 실패하면 업로드 전에 멈춘다.
+      # build = 테스트·린트(ktlint/spotless) + bootJar. 테스트가 실패하면 업로드 전에 멈춘다.
       - name: Build and test
         run: ./gradlew build --no-daemon
 

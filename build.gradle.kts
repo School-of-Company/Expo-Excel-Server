@@ -1,4 +1,5 @@
 plugins {
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.10.2"
     kotlin("jvm") version "2.3.21"
     kotlin("plugin.spring") version "2.3.21"
@@ -60,6 +61,8 @@ kotlin {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+ktlint { version.set("1.8.0") }
 
 spotless {
     kotlin {
