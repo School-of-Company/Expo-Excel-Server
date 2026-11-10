@@ -6,8 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import team.startup.report.global.client.ClientResilience
 import team.startup.report.global.client.SessionType
-import team.startup.report.global.client.fetchOrNull
-import team.startup.report.global.client.fetchRequired
+import team.startup.report.global.client.fetch
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
 
@@ -28,7 +27,7 @@ class AttendanceClient(
         size: Int,
     ): EntryRecordPage? {
         val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "입장 기록 서비스 연결이 설정되지 않았습니다.")
-        return resilience.read.fetchOrNull { client.entryRecordPage(expoId, from, to, page, size) }
+        return resilience.read.fetch(notFoundAsNull = true) { client.entryRecordPage(expoId, from, to, page, size) }
     }
 
     /**
@@ -40,7 +39,7 @@ class AttendanceClient(
         programId: Long,
     ): List<ProgramAttendanceRecord> {
         val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "출석 서비스 연결이 설정되지 않았습니다.")
-        return resilience.read.fetchRequired { client.programAttendances(programType.name.lowercase(), programId) }
+        return resilience.read.fetch { client.programAttendances(programType.name.lowercase(), programId) }!!
     }
 
     companion object {

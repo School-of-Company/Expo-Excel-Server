@@ -1,19 +1,17 @@
 package team.startup.report.global.security
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
-import org.springframework.http.MediaType
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.web.SecurityFilterChain
-import team.startup.report.global.exception.ErrorResponse
-import team.startup.report.global.swagger.SwaggerProperties
 import tools.jackson.databind.json.JsonMapper
 
 @Configuration
 class SwaggerSecurityConfig(
-    private val properties: SwaggerProperties,
+    @Value("\${swagger.enabled:false}") private val enabled: Boolean,
     private val jsonMapper: JsonMapper,
 ) {
     @Bean
@@ -26,13 +24,10 @@ class SwaggerSecurityConfig(
             .httpBasic { it.disable() }
             .exceptionHandling {
                 it.authenticationEntryPoint { _, response, _ ->
-                    response.status = 403
-                    response.characterEncoding = "UTF-8"
-                    response.contentType = MediaType.APPLICATION_JSON_VALUE
-                    jsonMapper.writeValue(response.writer, ErrorResponse(403, "접근 권한이 없습니다."))
+                    response.writeError(jsonMapper, 403, "접근 권한이 없습니다.")
                 }
             }.authorizeHttpRequests {
-                if (properties.enabled) it.requestMatchers(HttpMethod.GET, *PATHS).permitAll()
+                if (enabled) it.requestMatchers(HttpMethod.GET, *PATHS).permitAll()
                 it.anyRequest().denyAll()
             }
         return http.build()
