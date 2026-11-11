@@ -17,7 +17,8 @@ import java.time.Instant
 object RequestDeadline {
     private const val ATTRIBUTE = "report.requestDeadline"
 
-    // ponytail: 이미 시작한 호출 하나는 끝까지 기다린다(최대 connect 3s + read 10s). 남은 시간으로 호출별 read-timeout을 줄이는 것은 하지 않았다
+    // ponytail: 이미 시작한 호출 하나는 끝까지 기다린다(최대 connect 3s + read 10s). 남은 시간으로 호출별 read-timeout을 줄이는 것은 하지 않았다.
+    // Gateway가 504로 끊은 뒤에도 공급자 호출이 남는 것이 로그에서 보이면, 남은 시간으로 호출별 read-timeout을 줄인다.
     val BUDGET: Duration = Duration.ofSeconds(58)
 
     fun start(
