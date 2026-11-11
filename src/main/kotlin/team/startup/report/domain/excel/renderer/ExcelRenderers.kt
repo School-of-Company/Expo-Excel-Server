@@ -25,7 +25,6 @@ import java.util.Locale
 // v1 Expo-Server 858101864235c9492fb2bd37ccf1df5346958d66 domain/excel/service/impl 의 시트 구성을 그대로 옮긴다.
 // 시트명·열 제목·열 순서·값 표현·서식은 외부 계약이다. Report #88의 연락처 추가·고정 학번 제거 외에는 기존 구성을 유지한다.
 
-private const val EXCEL_CELL_MAX_LEN = 32767
 private val DARK_HEADER_RGB = rgb(34, 37, 41)
 private val WHITE_RGB = rgb(255, 255, 255)
 private val LIGHT_GREY_RGB = rgb(242, 242, 242)
@@ -433,5 +432,5 @@ internal fun safe(value: String?): String =
     (value ?: "")
         .replace("\r", "")
         .replace("\n", "")
-        .replace(Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]"), "")
+        .replace(CELL_CONTROL_CHARACTERS, "")
         .take(EXCEL_CELL_MAX_LEN)
