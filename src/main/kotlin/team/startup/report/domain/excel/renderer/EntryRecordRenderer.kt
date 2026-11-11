@@ -6,8 +6,8 @@ import team.startup.report.global.client.attendance.EntryRecord
 import team.startup.report.global.client.attendance.WalkInCount
 import team.startup.report.global.client.user.StandardParticipantEntryCard
 import team.startup.report.global.client.user.TraineeEntryCard
+import team.startup.report.global.common.time.REPORT_DATE_TIME
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 /** 유저 서비스가 돌려준 일반 참가자·연수자(ID별). 없는 대상은 이름 빈 칸, 직업 미확인이다. 이름은 로그에 남기지 않는다. */
 class EntrySubjects(
@@ -16,8 +16,6 @@ class EntrySubjects(
 )
 
 private const val UNKNOWN_OCCUPATION = "미확인"
-
-private val OCCURRED_AT_OUTPUT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
 private val EVENT_LABELS = mapOf("ENTER" to "입장", "RE_ENTER" to "재입장", "EXIT" to "퇴장")
 private val SUBJECT_LABELS = mapOf("STANDARD" to "일반 참가자", "TRAINEE" to "연수자", "PAPER_QR" to "종이 QR")
@@ -125,7 +123,7 @@ private fun occupation(
 // 공급자 형식이 달라도 파일은 만들어야 하므로 못 읽으면 원문을 쓴다
 private fun occurredAt(value: String): String =
     try {
-        LocalDateTime.parse(value).format(OCCURRED_AT_OUTPUT)
+        LocalDateTime.parse(value).format(REPORT_DATE_TIME)
     } catch (_: Exception) {
         value
     }

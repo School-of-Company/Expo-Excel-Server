@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import team.startup.report.global.client.ClientResilience
 import team.startup.report.global.client.ProviderStatusException
 import team.startup.report.global.client.encodedCursor
-import team.startup.report.global.client.fetchRequired
+import team.startup.report.global.client.fetch
 import team.startup.report.global.exception.ExpectedException
 import java.time.LocalDate
 import java.util.UUID
@@ -24,7 +24,7 @@ class ApplicationClient(
         expoId: UUID,
         visitDate: LocalDate?,
         cursor: UUID?,
-    ): FieldVisitPage = resilience.read.fetchRequired { api.fieldVisits(expoId, visitDate, cursor, 100) }
+    ): FieldVisitPage = resilience.read.fetch { api.fieldVisits(expoId, visitDate, cursor, 100) }!!
 
     fun selectedTargets(
         expoId: UUID,
@@ -94,12 +94,11 @@ class ApplicationClient(
         }
 
     /** 프로그램의 일반 신청. 공급자는 프로그램 존재를 확인하지 않으므로 존재 확인은 Expo로 한다. */
-    fun standardApplications(programId: Long): List<StandardApplication> =
-        resilience.read.fetchRequired { api.standardApplications(programId) }
+    fun standardApplications(programId: Long): List<StandardApplication> = resilience.read.fetch { api.standardApplications(programId) }!!
 
     fun trainingApplications(traineeIds: List<Long>): List<TrainingApplication> {
         require(traineeIds.size <= MAX_TRAINEE_IDS)
-        return resilience.write.fetchRequired { api.trainingApplications(mapOf("traineeIds" to traineeIds)) }
+        return resilience.write.fetch { api.trainingApplications(mapOf("traineeIds" to traineeIds)) }!!
     }
 
     companion object {

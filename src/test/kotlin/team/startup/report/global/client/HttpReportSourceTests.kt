@@ -6,12 +6,11 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
-import team.startup.report.domain.excel.service.ApplicationType
-import team.startup.report.domain.excel.service.ProgramParticipant
-import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.impl.HttpReportSource
 import team.startup.report.global.client.application.ApplicationClient
 import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.expo.TrainingCategory
+import team.startup.report.global.client.user.ApplicationType
 import team.startup.report.global.client.user.UserClient
 import java.time.Duration
 
@@ -124,57 +123,6 @@ class HttpReportSourceTests :
             user.on(TRAINEE_PAGE, body = mapOf("items" to emptyList<Any>(), "nextCursor" to null))
             source.trainees("e1") shouldBe emptyList()
             application.requests shouldBe emptyList()
-        }
-
-        "프로그램 참가자: 행사 소속이 아니면 null" {
-            expo.on("GET /internal/expo/e1/standard-programs/7", 404, """{"status":404}""")
-            source.programParticipants("e1", 7) shouldBe null
-            application.requests shouldBe emptyList()
-        }
-
-        "프로그램 참가자: 신청 순서대로 참가자를 ID로 연결한다" {
-            expo.on("GET /internal/expo/e1/standard-programs/7", body = mapOf("id" to 7, "title" to "프로그램"))
-            application.on(
-                "GET /internal/standard-program-applications/program/7",
-                body =
-                    listOf(
-                        mapOf("applicationId" to 3, "participantId" to 30, "status" to false),
-                        mapOf("applicationId" to 1, "participantId" to 10, "status" to true),
-                        mapOf("applicationId" to 2, "participantId" to 20, "status" to false),
-                    ),
-            )
-            user.on(
-                "POST /internal/standard-participants/details",
-                body =
-                    listOf(30L, 20L, 10L).map {
-                        mapOf(
-                            "participantId" to it,
-                            "name" to "p$it",
-                            "phoneNumber" to "010-$it",
-                            "personalInformationStatus" to (it == 10L),
-                        )
-                    },
-            )
-
-            source.programParticipants("e1", 7)!! shouldContainExactly
-                listOf(
-                    ProgramParticipant("p10", "010-10", true),
-                    ProgramParticipant("p20", "010-20", false),
-                    ProgramParticipant("p30", "010-30", false),
-                )
-            val brief = user.requests.single()
-            StubProvider.JSON.readTree(brief.body).let {
-                it["expoId"].asString() shouldBe "e1"
-                longs(brief.body, "participantIds") shouldContainExactly listOf(10L, 20L, 30L)
-            }
-            brief.uri shouldNotContain "010"
-        }
-
-        "프로그램 참가자: 신청이 없으면 빈 목록이고 User를 부르지 않는다" {
-            expo.on("GET /internal/expo/e1/standard-programs/7", body = mapOf("id" to 7, "title" to "프로그램"))
-            application.on("GET /internal/standard-program-applications/program/7", body = emptyList<Any>())
-            source.programParticipants("e1", 7) shouldBe emptyList()
-            user.requests shouldBe emptyList()
         }
 
         "출석부: 연수자가 없으면 null" {

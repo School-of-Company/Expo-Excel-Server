@@ -1,12 +1,10 @@
 package team.startup.report.global.security
 
-import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
-import org.springframework.http.MediaType
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.authority.SimpleGrantedAuthority
@@ -21,7 +19,6 @@ import org.springframework.security.oauth2.jwt.JwtValidators
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
 import org.springframework.security.web.SecurityFilterChain
-import team.startup.report.global.exception.ErrorResponse
 import tools.jackson.databind.json.JsonMapper
 import java.security.KeyFactory
 import java.security.interfaces.RSAPublicKey
@@ -63,8 +60,8 @@ class ExcelSecurityConfig(
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .exceptionHandling {
                 it
-                    .authenticationEntryPoint { _, res, _ -> res.writeError(401, "인증이 필요합니다.") }
-                    .accessDeniedHandler { _, res, _ -> res.writeError(403, "접근 권한이 없습니다.") }
+                    .authenticationEntryPoint { _, res, _ -> res.writeError(jsonMapper, 401, "인증이 필요합니다.") }
+                    .accessDeniedHandler { _, res, _ -> res.writeError(jsonMapper, 403, "접근 권한이 없습니다.") }
             }.authorizeHttpRequests {
                 it
                     .requestMatchers(HttpMethod.POST, "/excel/expos/{expoId}/downloads")
@@ -82,7 +79,7 @@ class ExcelSecurityConfig(
                     .denyAll()
             }.oauth2ResourceServer {
                 it.jwt { jwt -> jwt.decoder(jwtDecoder()).jwtAuthenticationConverter(converter) }
-                it.authenticationEntryPoint { _, res, _ -> res.writeError(401, "인증이 필요합니다.") }
+                it.authenticationEntryPoint { _, res, _ -> res.writeError(jsonMapper, 401, "인증이 필요합니다.") }
             }
         return http.build()
     }
@@ -116,16 +113,6 @@ class ExcelSecurityConfig(
                 expiresAt.isAfter(now) &&
                 jwt.getClaim<Any>(ROLE_CLAIM) is String
         return if (valid) OAuth2TokenValidatorResult.success() else OAuth2TokenValidatorResult.failure(OAuth2Error("invalid_token"))
-    }
-
-    private fun HttpServletResponse.writeError(
-        status: Int,
-        message: String,
-    ) {
-        this.status = status
-        characterEncoding = "UTF-8"
-        contentType = MediaType.APPLICATION_JSON_VALUE
-        jsonMapper.writeValue(writer, ErrorResponse(status, message))
     }
 
     private companion object {

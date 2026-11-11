@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component
 import team.startup.report.domain.excel.security.ExcelAccessInterceptor
 import team.startup.report.domain.excel.service.MappedAnswers
 import team.startup.report.domain.excel.service.ParticipantProfile
-import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
@@ -21,7 +20,6 @@ import team.startup.report.global.client.user.InformationResDto
 import team.startup.report.global.client.user.StandardParticipantDetail
 import team.startup.report.global.client.user.TraineeDetailItem
 import team.startup.report.global.client.user.UserClient
-import team.startup.report.global.client.user.readAll
 import tools.jackson.databind.JsonNode
 
 /**
@@ -39,7 +37,7 @@ class HttpReportSource(
     override fun standardParticipants(expoId: String): List<StandardParticipant>? {
         expo.expo(expoId) ?: return null
         val unresolved = Unresolved()
-        val all = readAll(cursorError = { "${UserClient.NAME} 서비스 커서 오류" }) { user.standardParticipantPage(expoId, it) }
+        val all = user.allStandardParticipants(expoId, USER_CURSOR_ERROR)
         val byId = all.associateBy { it.participantId }
         return all
             .sortedBy { it.participantId }
@@ -58,18 +56,9 @@ class HttpReportSource(
 
     override fun trainees(expoId: String): List<Trainee>? {
         expo.expo(expoId) ?: return null
-        val trainees = readAll(cursorError = { "${UserClient.NAME} 서비스 커서 오류" }) { user.traineePage(expoId, it) }.sortedBy { it.traineeId }
-        val people =
-            if (trainees.any {
-                    it.participantId != null
-                }
-            ) {
-                readAll(
-                    cursorError = { "${UserClient.NAME} 서비스 커서 오류" },
-                ) { user.standardParticipantPage(expoId, it) }.associateBy { it.participantId }
-            } else {
-                emptyMap()
-            }
+        val trainees = user.allTrainees(expoId, USER_CURSOR_ERROR).sortedBy { it.traineeId }
+        val linked = trainees.any { it.participantId != null }
+        val people = if (linked) user.allStandardParticipants(expoId, USER_CURSOR_ERROR).associateBy { it.participantId } else emptyMap()
         val applications = trainingApplications(trainees.map { it.traineeId }).groupBy { it.traineeId }
         val programs = trainingPrograms(expoId, applications.values.flatten())
         val unresolved = Unresolved()
@@ -86,25 +75,6 @@ class HttpReportSource(
                     notificationPhoneNumber = trainee.participantId?.let { people.getValue(it).notificationPhoneNumber },
                 )
             }.also { unresolved.report("trainee", expoId) }
-    }
-
-    override fun programParticipants(
-        expoId: String,
-        programId: Long,
-    ): List<ProgramParticipant>? {
-        expo.standardProgram(expoId, programId) ?: return null
-        // 신청 순서(applicationId 오름차순)
-        val applications = application.standardApplications(programId).sortedBy { it.applicationId }
-        val participantIds = applications.map { it.participantId }.distinct()
-        val participants =
-            participantIds
-                .chunked(UserClient.MAX_BRIEF_IDS)
-                .flatMap { user.standardParticipantBriefs(expoId, it) }
-                .associateBy { it.participantId }
-        return applications.map {
-            val participant = participants[it.participantId] ?: error("${UserClient.NAME} 서비스 응답 누락")
-            ProgramParticipant(participant.name, participant.phoneNumber, participant.personalInformationStatus)
-        }
     }
 
     override fun traineeAttendance(traineeId: Long): TraineeAttendance? {
