@@ -1,5 +1,7 @@
 package team.startup.report.domain.excel.service
 
+import team.startup.report.global.client.expo.TrainingCategory
+import team.startup.report.global.client.user.ApplicationType
 import team.startup.report.global.common.time.parseProgramDateTime
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -13,19 +15,8 @@ interface ReportSource {
 
     fun trainees(expoId: String): List<Trainee>?
 
-    /** 프로그램이 없거나 [expoId] 소속이 아니면 null */
-    fun programParticipants(
-        expoId: String,
-        programId: Long,
-    ): List<ProgramParticipant>?
-
     fun traineeAttendance(traineeId: Long): TraineeAttendance?
 }
-
-// 기존 서비스 DTO를 사용하는 호출자의 소스 호환성을 유지한다.
-typealias ApplicationType = team.startup.report.global.client.user.ApplicationType
-
-typealias TrainingCategory = team.startup.report.global.client.expo.TrainingCategory
 
 /**
  * ReportSource 응답 DTO. 엑셀 한 행의 원천 데이터. 동적 답변(information, surveyAnswer)은 키가 문항 제목이고 순서가 보존된 맵이다.

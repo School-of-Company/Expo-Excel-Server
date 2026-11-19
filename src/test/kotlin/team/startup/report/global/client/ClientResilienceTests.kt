@@ -25,6 +25,8 @@ class ClientResilienceTests :
         lateinit var user: StubProvider
         lateinit var expo: StubProvider
         lateinit var form: StubProvider
+        lateinit var userBreaker: CircuitBreaker
+        lateinit var expoBreaker: CircuitBreaker
         lateinit var userResilience: ClientResilience
         lateinit var expoResilience: ClientResilience
 
@@ -32,8 +34,10 @@ class ClientResilienceTests :
             user = StubProvider("t")
             expo = StubProvider("t")
             form = StubProvider("t")
-            userResilience = ClientResilience(UserClient.NAME)
-            expoResilience = ClientResilience(ExpoClient.NAME)
+            userBreaker = ClientResilience.circuitBreaker(UserClient.NAME)
+            expoBreaker = ClientResilience.circuitBreaker(ExpoClient.NAME)
+            userResilience = ClientResilience(UserClient.NAME, userBreaker)
+            expoResilience = ClientResilience(ExpoClient.NAME, expoBreaker)
         }
         afterTest { listOf(user, expo, form).forEach(StubProvider::close) }
 
@@ -50,7 +54,7 @@ class ClientResilienceTests :
             val client = userClient()
 
             openByFailures { client.trainee(1) }
-            userResilience.state shouldBe CircuitBreaker.State.OPEN
+            userBreaker.state shouldBe CircuitBreaker.State.OPEN
 
             val before = user.requests.size
             val e = shouldThrow<IllegalStateException> { client.trainee(1) }
@@ -64,10 +68,10 @@ class ClientResilienceTests :
             expo.on(EXPO, body = EXPO_BODY)
             val users = userClient()
             openByFailures { users.trainee(1) }
-            userResilience.state shouldBe CircuitBreaker.State.OPEN
+            userBreaker.state shouldBe CircuitBreaker.State.OPEN
 
             expoClient().expo("e1")!!.title shouldBe "행사"
-            expoResilience.state shouldBe CircuitBreaker.State.CLOSED
+            expoBreaker.state shouldBe CircuitBreaker.State.CLOSED
         }
 
         "404와 409·401 같은 4xx는 아무리 반복해도 회로를 열지 않는다" {
@@ -83,8 +87,8 @@ class ClientResilienceTests :
                 runCatching { expos.expo("e1") }
             }
 
-            userResilience.state shouldBe CircuitBreaker.State.CLOSED
-            expoResilience.state shouldBe CircuitBreaker.State.CLOSED
+            userBreaker.state shouldBe CircuitBreaker.State.CLOSED
+            expoBreaker.state shouldBe CircuitBreaker.State.CLOSED
             user.requests.size shouldBe 60
         }
 
@@ -94,7 +98,7 @@ class ClientResilienceTests :
 
             repeat(30) { shouldThrow<IllegalStateException> { client.trainee(1) } }
 
-            userResilience.state shouldBe CircuitBreaker.State.CLOSED
+            userBreaker.state shouldBe CircuitBreaker.State.CLOSED
             user.requests.size shouldBe 30
         }
 
@@ -157,7 +161,7 @@ class ClientResilienceTests :
             shouldThrow<IllegalStateException> { client.trainee(1) }
             openByFailures { client.trainee(1) }
 
-            userResilience.state shouldBe CircuitBreaker.State.OPEN
+            userBreaker.state shouldBe CircuitBreaker.State.OPEN
         }
 
         "재시도해도 사용자 요청 1건은 집계 1건이라 10번째 요청에서 열린다" {
@@ -166,9 +170,9 @@ class ClientResilienceTests :
 
             repeat(9) {
                 shouldThrow<IllegalStateException> { client.trainee(1) }
-                userResilience.state shouldBe CircuitBreaker.State.CLOSED
+                userBreaker.state shouldBe CircuitBreaker.State.CLOSED
             }
             shouldThrow<IllegalStateException> { client.trainee(1) }
-            userResilience.state shouldBe CircuitBreaker.State.OPEN
+            userBreaker.state shouldBe CircuitBreaker.State.OPEN
         }
     })

@@ -1,5 +1,6 @@
 package team.startup.report.domain.excel.service
 
+import team.startup.report.domain.excel.renderer.choiceText
 import tools.jackson.databind.JsonNode
 
 // User 공급자의 답변(answers)과 제출 당시 문항 스냅샷(questions)을 엑셀 렌더러 입력(문항 제목 → 표시 문자열)으로 바꾼다.
@@ -213,14 +214,6 @@ private class Counter(
         choices.get(key)?.let(::choiceText)?.let { return it }
         return key.takeIf { choices.values().any { choiceText(it) == key } }
     }
-
-    /** jsonData 값은 "문구" 또는 {"value": "문구", "isAlwaysSelected": true} */
-    private fun choiceText(node: JsonNode): String? =
-        when {
-            node.isString -> node.stringValue()
-            node.isObject -> node.get("value")?.takeIf { it.isString }?.stringValue()
-            else -> null
-        }
 
     private fun plain(value: JsonNode): String =
         when {

@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestParam
 import team.startup.report.global.client.ClientResilience
 import team.startup.report.global.client.encodedCursor
-import team.startup.report.global.client.fetchOrNull
+import team.startup.report.global.client.fetch
 import team.startup.report.global.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 
@@ -24,7 +24,9 @@ class FormClient(
         cursor: String?,
     ): PublicSurveyAnswerPage? {
         val client = api ?: throw ExpectedException(HttpStatus.SERVICE_UNAVAILABLE, "설문 서비스 연결이 설정되지 않았습니다.")
-        return resilience.read.fetchOrNull { client.publicSurveyAnswerPage(expoId, cursor?.let(::encodedCursor), PAGE_SIZE) }
+        return resilience.read.fetch(
+            notFoundAsNull = true,
+        ) { client.publicSurveyAnswerPage(expoId, cursor?.let(::encodedCursor), PAGE_SIZE) }
     }
 
     companion object {

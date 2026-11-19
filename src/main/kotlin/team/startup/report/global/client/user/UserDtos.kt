@@ -56,20 +56,8 @@ data class TraineeDetail(
     val registration: InformationResDto? = null,
 )
 
-data class StandardParticipantBrief(
-    val participantId: Long,
-    val name: String?,
-    val phoneNumber: String?,
-    val personalInformationStatus: Boolean?,
-)
-
 data class StandardParticipantName(
     val participantId: Long,
-    val name: String?,
-)
-
-data class TraineeName(
-    val traineeId: Long,
     val name: String?,
 )
 

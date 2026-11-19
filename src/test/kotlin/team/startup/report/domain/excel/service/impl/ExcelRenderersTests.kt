@@ -15,14 +15,14 @@ import team.startup.report.domain.excel.renderer.renderProgramParticipants
 import team.startup.report.domain.excel.renderer.renderStandardParticipants
 import team.startup.report.domain.excel.renderer.renderTraineeAttendance
 import team.startup.report.domain.excel.renderer.renderTrainees
-import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.ProgramApplicationColumns
 import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
-import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
+import team.startup.report.global.client.expo.TrainingCategory
+import team.startup.report.global.client.user.ApplicationType
 import team.startup.report.support.assertDarkHeader
 import team.startup.report.support.assertThinBorders
 import team.startup.report.support.cell

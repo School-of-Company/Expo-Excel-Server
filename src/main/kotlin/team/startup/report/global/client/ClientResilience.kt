@@ -23,8 +23,6 @@ class ClientResilience(
     val provider: String,
     private val breaker: CircuitBreaker = circuitBreaker(provider),
 ) {
-    val state: CircuitBreaker.State get() = breaker.state
-
     /** 멱등한 GET. 즉시 실패에 한해 1회 재시도한다. */
     val read = Guard(retry = Retry.of(provider, RETRY_CONFIG))
 

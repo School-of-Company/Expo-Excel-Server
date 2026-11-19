@@ -16,12 +16,12 @@ import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
-import team.startup.report.domain.excel.service.ApplicationType
 import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
-import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
 import team.startup.report.global.client.StubProvider
+import team.startup.report.global.client.expo.TrainingCategory
+import team.startup.report.global.client.user.ApplicationType
 import team.startup.report.support.TestJwt
 import java.io.ByteArrayInputStream
 import java.net.URI

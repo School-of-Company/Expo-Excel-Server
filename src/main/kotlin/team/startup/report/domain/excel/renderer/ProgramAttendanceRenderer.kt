@@ -2,7 +2,6 @@ package team.startup.report.domain.excel.renderer
 
 import team.startup.report.global.client.SessionType
 import team.startup.report.global.client.application.ApplicationRow
-import team.startup.report.global.client.application.ApplicationStatus
 import team.startup.report.global.client.attendance.ProgramAttendanceRecord
 import team.startup.report.global.common.time.PROGRAM_SCHEDULE
 import team.startup.report.global.common.time.parseProgramDateTime
@@ -25,9 +24,6 @@ data class AttendanceRow(
     val application: ApplicationRow?,
     val record: ProgramAttendanceRecord?,
 )
-
-private val STATUS_LABELS =
-    mapOf(ApplicationStatus.CONFIRMED to "확정", ApplicationStatus.WAITING to "대기", ApplicationStatus.CANCELLED to "취소")
 
 /** 시트 "실제 출석 결과"(확정 신청자)와 "신청 불일치 출석"(확정 신청 없는 출석). 대상이 없어도 머리글만 있는 두 시트를 만든다. */
 fun renderProgramAttendance(
@@ -75,7 +71,7 @@ fun renderProgramAttendance(
                             row.person?.name,
                             row.person?.affiliation,
                             row.application?.applicationId?.toString(),
-                            row.application?.status?.let(STATUS_LABELS::getValue) ?: "신청 없음",
+                            row.application?.status?.let(APPLICATION_STATUS_LABELS::getValue) ?: "신청 없음",
                             attendance,
                             row.record?.attendanceDate?.toString(),
                             row.record?.entryTime,

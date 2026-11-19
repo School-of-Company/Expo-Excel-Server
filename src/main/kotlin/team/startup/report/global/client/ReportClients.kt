@@ -210,7 +210,3 @@ internal fun <T : Any> ClientResilience.Guard.fetch(
     } catch (e: FeignException) {
         error("$provider 서비스 응답 형식 오류")
     }
-
-internal fun <T : Any> ClientResilience.Guard.fetchOrNull(call: () -> T?): T? = fetch(notFoundAsNull = true, call = call)
-
-internal fun <T : Any> ClientResilience.Guard.fetchRequired(call: () -> T?): T = fetch(call = call)!!

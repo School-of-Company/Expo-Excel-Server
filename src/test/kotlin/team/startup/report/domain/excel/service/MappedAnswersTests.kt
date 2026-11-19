@@ -7,6 +7,7 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import team.startup.report.domain.excel.renderer.renderStandardParticipants
 import team.startup.report.domain.excel.renderer.renderTrainees
+import team.startup.report.global.client.user.ApplicationType
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.ByteArrayInputStream

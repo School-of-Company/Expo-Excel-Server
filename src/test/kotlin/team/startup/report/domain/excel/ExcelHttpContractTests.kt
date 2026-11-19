@@ -21,19 +21,18 @@ import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import team.startup.report.domain.excel.presentation.controller.ExcelController
-import team.startup.report.domain.excel.service.ApplicationType
-import team.startup.report.domain.excel.service.ProgramParticipant
 import team.startup.report.domain.excel.service.ReportSource
 import team.startup.report.domain.excel.service.StandardParticipant
 import team.startup.report.domain.excel.service.Trainee
 import team.startup.report.domain.excel.service.TraineeAttendance
-import team.startup.report.domain.excel.service.TrainingCategory
 import team.startup.report.domain.excel.service.TrainingProgram
 import team.startup.report.domain.excel.service.impl.StandardParticipantInfoToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeAttendanceToExcelServiceImpl
 import team.startup.report.domain.excel.service.impl.TraineeInfoToExcelServiceImpl
 import team.startup.report.global.client.StubProvider
 import team.startup.report.global.client.expo.ExpoClient
+import team.startup.report.global.client.expo.TrainingCategory
+import team.startup.report.global.client.user.ApplicationType
 import team.startup.report.global.client.user.InformationResDto
 import team.startup.report.global.client.user.TraineeDetail
 import team.startup.report.global.client.user.UserClient
@@ -196,7 +195,6 @@ class ExcelHttpContractTests {
     class FakeReportSource : ReportSource {
         var standard: List<StandardParticipant>? = null
         var trainees: List<Trainee>? = null
-        var program: List<ProgramParticipant>? = null
         var attendance: TraineeAttendance? = null
         var failure: Exception? = null
         val calls = mutableListOf<String>()
@@ -204,7 +202,6 @@ class ExcelHttpContractTests {
         fun reset() {
             standard = null
             trainees = null
-            program = null
             attendance = null
             failure = null
             calls.clear()
@@ -222,11 +219,6 @@ class ExcelHttpContractTests {
         override fun standardParticipants(expoId: String) = answer("standard:$expoId", standard)
 
         override fun trainees(expoId: String) = answer("trainees:$expoId", trainees)
-
-        override fun programParticipants(
-            expoId: String,
-            programId: Long,
-        ) = answer("program:$expoId:$programId", program)
 
         override fun traineeAttendance(traineeId: Long) = answer("attendance:$traineeId", attendance)
     }
